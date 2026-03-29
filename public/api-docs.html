@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation — Akshay Kotish & Co.</title>
+    <meta name="description" content="API documentation for Akshay Kotish & Co. Payments, Razorpay integration, and business management APIs.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8f8f8; color: #1a1a1a; }
+
+        .header { background: #1a1a1a; padding: 20px 0; position: sticky; top: 0; z-index: 100; }
+        .header-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+        .header-brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; }
+        .header-brand .logo { width: 36px; height: 36px; background: #2e7d32; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; color: #fff; }
+        .header-brand span { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 18px; }
+        .header-links { display: flex; gap: 16px; }
+        .header-links a { color: #888; font-size: 13px; font-weight: 700; text-decoration: none; transition: color 0.2s; }
+        .header-links a:hover { color: #c0e040; }
+
+        .hero { background: linear-gradient(135deg, #1a1a1a 0%, #2e7d32 100%); padding: 60px 24px 50px; text-align: center; }
+        .hero h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 900; color: #fff; margin-bottom: 12px; }
+        .hero p { font-size: 16px; color: #c0e040; font-weight: 600; max-width: 600px; margin: 0 auto; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+        .two-col { display: flex; gap: 32px; }
+        .sidebar-nav { width: 240px; flex-shrink: 0; position: sticky; top: 80px; align-self: flex-start; }
+        .sidebar-nav a { display: block; padding: 8px 12px; font-size: 13px; font-weight: 600; color: #555; text-decoration: none; border-left: 3px solid transparent; transition: all 0.15s; border-radius: 0 6px 6px 0; }
+        .sidebar-nav a:hover, .sidebar-nav a.active { border-left-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
+        .sidebar-nav .nav-group { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: #999; padding: 16px 12px 6px; }
+        .main-content { flex: 1; min-width: 0; }
+
+        .section { margin-bottom: 48px; }
+        .section h2 { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 900; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 3px solid #1a1a1a; }
+        .section h3 { font-size: 18px; font-weight: 800; margin: 24px 0 12px; color: #2e7d32; }
+        .section p { font-size: 14px; line-height: 1.7; color: #555; margin-bottom: 12px; }
+
+        .endpoint { background: #fff; border: 3px solid #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 4px 4px 0 #1a1a1a; }
+        .endpoint-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+        .method { display: inline-block; padding: 4px 12px; border-radius: 6px; font-weight: 900; font-size: 12px; letter-spacing: 0.5px; }
+        .method-get { background: #e3f2fd; color: #1565c0; }
+        .method-post { background: #e8f5e9; color: #2e7d32; }
+        .method-put { background: #fff3e0; color: #e65100; }
+        .method-delete { background: #ffebee; color: #c62828; }
+        .endpoint-path { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px; color: #1a1a1a; }
+        .endpoint-desc { font-size: 13px; color: #666; margin-bottom: 12px; }
+
+        .code-block { background: #1a1a1a; color: #c0e040; border-radius: 8px; padding: 16px 20px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; margin: 12px 0; }
+        .code-block .comment { color: #666; }
+        .code-block .string { color: #a5d6a7; }
+        .code-block .key { color: #90caf9; }
+        .code-block .num { color: #ffcc80; }
+
+        .params-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+        .params-table th { text-align: left; padding: 8px 12px; background: #f5f5f5; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e0e0e0; }
+        .params-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .params-table .param-name { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #2e7d32; }
+        .params-table .param-type { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #888; }
+        .params-table .required { color: #c62828; font-weight: 700; font-size: 10px; }
+
+        .badge { display: inline-block; padding: 2px 8px; font-size: 10px; font-weight: 900; border-radius: 4px; letter-spacing: 0.5px; }
+        .badge-auth { background: #fff3e0; color: #e65100; }
+        .badge-public { background: #e8f5e9; color: #2e7d32; }
+
+        .note { background: #fff8e1; border: 2px solid #ffe082; border-radius: 8px; padding: 14px 16px; font-size: 13px; line-height: 1.6; margin: 16px 0; }
+        .note strong { color: #f57f17; }
+
+        @media (max-width: 768px) {
+            .two-col { flex-direction: column; }
+            .sidebar-nav { width: 100%; position: static; display: flex; flex-wrap: wrap; gap: 4px; }
+            .sidebar-nav .nav-group { width: 100%; }
+            .hero h1 { font-size: 28px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-inner">
+            <a href="/" class="header-brand">
+                <div class="logo">AK</div>
+                <span>AK & Co.</span>
+            </a>
+            <div class="header-links">
+                <a href="/">Home</a>
+                <a href="/dashboard/">Dashboard</a>
+                <a href="/api-docs" style="color:#c0e040;">API Docs</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="hero">
+        <h1>API Documentation</h1>
+        <p>Integrate payments, billing, and business management into your applications using our REST APIs.</p>
+    </div>
+
+    <div class="container">
+        <div class="two-col">
+            <nav class="sidebar-nav">
+                <div class="nav-group">Getting Started</div>
+                <a href="#authentication">Authentication</a>
+                <a href="#base-url">Base URL</a>
+                <div class="nav-group">Payments API</div>
+                <a href="#record-payment">Record Payment</a>
+                <a href="#razorpay-order">Create Razorpay Order</a>
+                <a href="#razorpay-link">Create Payment Link</a>
+                <a href="#razorpay-webhook">Webhook</a>
+                <div class="nav-group">Billing API</div>
+                <a href="#create-invoice">Create Invoice</a>
+                <a href="#list-invoices">List Invoices</a>
+                <div class="nav-group">Other</div>
+                <a href="#mail">Mail API</a>
+                <a href="#health">Health Check</a>
+                <a href="#errors">Error Handling</a>
+            </nav>
+
+            <div class="main-content">
+                <!-- Authentication -->
+                <div class="section" id="authentication">
+                    <h2>Authentication</h2>
+                    <p>The API supports two authentication methods:</p>
+
+                    <h3>1. API Key (for external integrations & subsidiaries)</h3>
+                    <p>Pass your API key in the <code>x-api-key</code> header. API keys can be generated from the Dashboard under <strong>Payments & API</strong>.</p>
+                    <div class="code-block">
+<span class="comment">// Example with API key</span>
+curl -X POST https://akshaykotish.com/api/payments/api/record \
+  -H <span class="string">"x-api-key: ak_your_api_key_here"</span> \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{"amount": 5000, "type": "incoming", "description": "Product sale"}'</span>
+                    </div>
+
+                    <h3>2. Bearer Token (for dashboard/internal use)</h3>
+                    <p>Firebase Auth tokens for authenticated dashboard users.</p>
+                    <div class="code-block">
+<span class="comment">// Example with Bearer token</span>
+curl -X GET https://akshaykotish.com/api/billing/invoices \
+  -H <span class="string">"Authorization: Bearer &lt;firebase_id_token&gt;"</span>
+                    </div>
+                </div>
+
+                <!-- Base URL -->
+                <div class="section" id="base-url">
+                    <h2>Base URL</h2>
+                    <div class="code-block">
+https://akshaykotish.com/api
+                    </div>
+                    <p>All API endpoints are relative to this base URL.</p>
+                </div>
+
+                <!-- Record Payment -->
+                <div class="section" id="record-payment">
+                    <h2>Record Payment</h2>
+                    <p>Record a payment directly via API key. Used by subsidiaries and external tools.</p>
+
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-post">POST</span>
+                            <span class="endpoint-path">/payments/api/record</span>
+                            <span class="badge badge-auth">API Key</span>
+                        </div>
+                        <div class="endpoint-desc">Records an incoming or outgoing payment and creates a journal entry.</div>
+
+                        <h3>Headers</h3>
+                        <table class="params-table">
+                            <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td class="param-name">x-api-key</td><td class="param-type">string</td><td><span class="required">Required</span></td><td>Your API key</td></tr>
+                                <tr><td class="param-name">Content-Type</td><td class="param-type">string</td><td><span class="required">Required</span></td><td>application/json</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Body Parameters</h3>
+                        <table class="params-table">
+                            <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td class="param-name">amount</td><td class="param-type">number</td><td><span class="required">Required</span></td><td>Payment amount in INR</td></tr>
+                                <tr><td class="param-name">type</td><td class="param-type">string</td><td></td><td><code>incoming</code> or <code>outgoing</code> (default: incoming)</td></tr>
+                                <tr><td class="param-name">method</td><td class="param-type">string</td><td></td><td><code>bank_transfer</code>, <code>cash</code>, <code>upi</code>, <code>cheque</code>, <code>other</code></td></tr>
+                                <tr><td class="param-name">description</td><td class="param-type">string</td><td></td><td>Payment description</td></tr>
+                                <tr><td class="param-name">reference</td><td class="param-type">string</td><td></td><td>External reference ID</td></tr>
+                                <tr><td class="param-name">invoiceId</td><td class="param-type">string</td><td></td><td>Link to an existing invoice (marks it as paid)</td></tr>
+                                <tr><td class="param-name">metadata</td><td class="param-type">object</td><td></td><td>Any additional metadata</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Response</h3>
+                        <div class="code-block">
+{
+  <span class="key">"success"</span>: <span class="num">true</span>,
+  <span class="key">"paymentId"</span>: <span class="string">"PAY-A1B2C3D4"</span>,
+  <span class="key">"id"</span>: <span class="string">"firestore_doc_id"</span>
+}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Razorpay Order -->
+                <div class="section" id="razorpay-order">
+                    <h2>Create Razorpay Order</h2>
+                    <p>Create a Razorpay order for payment capture. Returns the order ID and key for client-side checkout.</p>
+
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-post">POST</span>
+                            <span class="endpoint-path">/razorpay/api/capture</span>
+                            <span class="badge badge-auth">API Key</span>
+                        </div>
+
+                        <h3>Body Parameters</h3>
+                        <table class="params-table">
+                            <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td class="param-name">amount</td><td class="param-type">number</td><td><span class="required">Required</span></td><td>Amount in INR (e.g., 500.00)</td></tr>
+                                <tr><td class="param-name">currency</td><td class="param-type">string</td><td></td><td>Currency code (default: INR)</td></tr>
+                                <tr><td class="param-name">description</td><td class="param-type">string</td><td></td><td>Order description</td></tr>
+                                <tr><td class="param-name">customer</td><td class="param-type">object</td><td></td><td><code>{ name, email, phone }</code></td></tr>
+                                <tr><td class="param-name">invoiceId</td><td class="param-type">string</td><td></td><td>Link to invoice</td></tr>
+                                <tr><td class="param-name">callbackUrl</td><td class="param-type">string</td><td></td><td>URL to redirect after payment</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Response</h3>
+                        <div class="code-block">
+{
+  <span class="key">"success"</span>: <span class="num">true</span>,
+  <span class="key">"orderId"</span>: <span class="string">"order_xxxxxxxxxxxxx"</span>,
+  <span class="key">"amount"</span>: <span class="num">500</span>,
+  <span class="key">"currency"</span>: <span class="string">"INR"</span>,
+  <span class="key">"keyId"</span>: <span class="string">"rzp_live_xxxxx"</span>,
+  <span class="key">"recordId"</span>: <span class="string">"firestore_doc_id"</span>
+}
+                        </div>
+
+                        <h3>Client-Side Integration</h3>
+                        <div class="code-block">
+<span class="comment">// Use the returned orderId and keyId with Razorpay Checkout</span>
+const options = {
+  <span class="key">key</span>: response.keyId,
+  <span class="key">order_id</span>: response.orderId,
+  <span class="key">amount</span>: response.amount * <span class="num">100</span>,
+  <span class="key">currency</span>: response.currency,
+  <span class="key">name</span>: <span class="string">"Your App Name"</span>,
+  <span class="key">handler</span>: function(resp) {
+    <span class="comment">// Verify payment on your server</span>
+    fetch(<span class="string">'/api/razorpay/verify'</span>, {
+      method: <span class="string">'POST'</span>,
+      body: JSON.stringify(resp)
+    });
+  }
+};
+const rzp = new Razorpay(options);
+rzp.open();
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Link -->
+                <div class="section" id="razorpay-link">
+                    <h2>Create Payment Link</h2>
+                    <p>Generate a shareable Razorpay payment link. Optionally send it via email with a professional invoice template.</p>
+
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-post">POST</span>
+                            <span class="endpoint-path">/razorpay/payment-link</span>
+                            <span class="badge badge-auth">Bearer Token</span>
+                        </div>
+
+                        <h3>Body Parameters</h3>
+                        <table class="params-table">
+                            <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td class="param-name">amount</td><td class="param-type">number</td><td><span class="required">Required</span></td><td>Amount in INR</td></tr>
+                                <tr><td class="param-name">description</td><td class="param-type">string</td><td></td><td>Payment description</td></tr>
+                                <tr><td class="param-name">customer</td><td class="param-type">object</td><td></td><td><code>{ name, email, phone }</code></td></tr>
+                                <tr><td class="param-name">invoiceId</td><td class="param-type">string</td><td></td><td>Link to existing invoice</td></tr>
+                                <tr><td class="param-name">sendEmail</td><td class="param-type">boolean</td><td></td><td>Send payment request email to customer</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Response</h3>
+                        <div class="code-block">
+{
+  <span class="key">"success"</span>: <span class="num">true</span>,
+  <span class="key">"paymentLinkId"</span>: <span class="string">"plink_xxxxxxxxxxxxx"</span>,
+  <span class="key">"paymentLinkUrl"</span>: <span class="string">"https://rzp.io/i/xxxxxxx"</span>,
+  <span class="key">"amount"</span>: <span class="num">5000</span>,
+  <span class="key">"emailSent"</span>: <span class="num">true</span>
+}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Webhook -->
+                <div class="section" id="razorpay-webhook">
+                    <h2>Razorpay Webhook</h2>
+                    <p>Configure this URL in your Razorpay Dashboard under <strong>Settings > Webhooks</strong> to receive automatic payment status updates.</p>
+
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-post">POST</span>
+                            <span class="endpoint-path">/razorpay/webhook</span>
+                            <span class="badge badge-public">Public</span>
+                        </div>
+                        <div class="endpoint-desc">Automatically processes <code>payment.captured</code> and <code>payment_link.paid</code> events. Updates payment records and linked invoices.</div>
+                    </div>
+
+                    <div class="note">
+                        <strong>Setup:</strong> In your Razorpay Dashboard, add the webhook URL <code>https://akshaykotish.com/api/razorpay/webhook</code> and select the events: <code>payment.captured</code>, <code>payment_link.paid</code>.
+                    </div>
+                </div>
+
+                <!-- Create Invoice -->
+                <div class="section" id="create-invoice">
+                    <h2>Create Invoice</h2>
+                    <p>Create a GST-compliant invoice with automatic tax calculations.</p>
+
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-post">POST</span>
+                            <span class="endpoint-path">/billing/invoices</span>
+                            <span class="badge badge-auth">Bearer Token</span>
+                        </div>
+
+                        <h3>Body Parameters</h3>
+                        <table class="params-table">
+                            <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td class="param-name">customer</td><td class="param-type">object</td><td><span class="required">Required</span></td><td><code>{ name, email, phone, address, gstin, state }</code></td></tr>
+                                <tr><td class="param-name">items</td><td class="param-type">array</td><td><span class="required">Required</span></td><td><code>[{ description, hsn, qty, rate, gstRate }]</code></td></tr>
+                                <tr><td class="param-name">notes</td><td class="param-type">string</td><td></td><td>Invoice notes</td></tr>
+                                <tr><td class="param-name">dueDate</td><td class="param-type">string</td><td></td><td>Due date (ISO format, default: 30 days)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Response</h3>
+                        <div class="code-block">
+{
+  <span class="key">"id"</span>: <span class="string">"firestore_doc_id"</span>,
+  <span class="key">"invoiceNumber"</span>: <span class="string">"INV-2026-0001"</span>,
+  <span class="key">"subtotal"</span>: <span class="num">10000</span>,
+  <span class="key">"cgst"</span>: <span class="num">900</span>,
+  <span class="key">"sgst"</span>: <span class="num">900</span>,
+  <span class="key">"total"</span>: <span class="num">11800</span>,
+  <span class="key">"status"</span>: <span class="string">"draft"</span>
+}
+                        </div>
+
+                        <div class="note">
+                            <strong>GST Auto-Calculation:</strong> If the customer's state matches the company state (Haryana), CGST + SGST are applied. For interstate customers, IGST is applied instead.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- List Invoices -->
+                <div class="section" id="list-invoices">
+                    <h2>List Invoices</h2>
+
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-get">GET</span>
+                            <span class="endpoint-path">/billing/invoices</span>
+                            <span class="badge badge-auth">Bearer Token</span>
+                        </div>
+                        <div class="endpoint-desc">Returns all invoices ordered by creation date (newest first).</div>
+                    </div>
+                </div>
+
+                <!-- Mail API -->
+                <div class="section" id="mail">
+                    <h2>Send Email</h2>
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-post">POST</span>
+                            <span class="endpoint-path">/mail/send</span>
+                            <span class="badge">Auth Required</span>
+                        </div>
+                        <p>Send an email via the configured SMTP provider (Gmail, Brevo, or custom SMTP).</p>
+                        <h3>Request Body</h3>
+                        <table class="params-table">
+                            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>to</strong></td><td>string</td><td>Yes</td><td>Recipient email address</td></tr>
+                                <tr><td><strong>subject</strong></td><td>string</td><td>Yes</td><td>Email subject line</td></tr>
+                                <tr><td><strong>html</strong></td><td>string</td><td>Yes</td><td>HTML body of the email</td></tr>
+                                <tr><td><strong>fromAlias</strong></td><td>string</td><td>No</td><td>Send from a specific alias email address</td></tr>
+                                <tr><td><strong>fromName</strong></td><td>string</td><td>No</td><td>Display name for the sender</td></tr>
+                                <tr><td><strong>attachments</strong></td><td>array</td><td>No</td><td>Array of nodemailer attachment objects</td></tr>
+                            </tbody>
+                        </table>
+                        <h3>Example</h3>
+                        <div class="code-block">
+POST /api/mail/send
+{
+  <span class="key">"to"</span>: <span class="string">"client@example.com"</span>,
+  <span class="key">"subject"</span>: <span class="string">"Invoice INV-2026-0001"</span>,
+  <span class="key">"html"</span>: <span class="string">"&lt;h1&gt;Invoice&lt;/h1&gt;&lt;p&gt;Please find your invoice...&lt;/p&gt;"</span>,
+  <span class="key">"fromAlias"</span>: <span class="string">"billing@akshaykotish.com"</span>,
+  <span class="key">"fromName"</span>: <span class="string">"AK &amp; Co. Billing"</span>
+}
+                        </div>
+                        <h3>Response</h3>
+                        <div class="code-block">
+{ <span class="key">"success"</span>: true, <span class="key">"messageId"</span>: <span class="string">"&lt;unique-id@smtp.gmail.com&gt;"</span> }
+                        </div>
+                    </div>
+
+                    <h2>Email Invoice</h2>
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-post">POST</span>
+                            <span class="endpoint-path">/billing/invoices/:id/send-email</span>
+                            <span class="badge">Auth Required</span>
+                        </div>
+                        <p>Send a formatted invoice email to the customer. Automatically sends a payment receipt when invoice status is "paid".</p>
+                        <h3>Request Body</h3>
+                        <table class="params-table">
+                            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>reason</strong></td><td>string</td><td>No</td><td>"payment_received" or "invoice_sent" (auto-detected from status)</td></tr>
+                            </tbody>
+                        </table>
+                        <div class="code-block">
+POST /api/billing/invoices/abc123/send-email
+{ <span class="key">"reason"</span>: <span class="string">"payment_received"</span> }
+                        </div>
+                        <p><strong>Note:</strong> Invoice emails are also sent automatically when:</p>
+                        <ul style="margin:8px 0 0 20px;font-size:13px;color:#555;">
+                            <li>Invoice status is changed to "paid" via the dashboard</li>
+                            <li>Razorpay webhook receives a payment.captured or payment_link.paid event</li>
+                            <li>Razorpay checkout payment is verified via /razorpay/verify</li>
+                        </ul>
+                    </div>
+
+                    <h2>Mail Configuration Status</h2>
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-get">GET</span>
+                            <span class="endpoint-path">/mail/status</span>
+                            <span class="badge">Auth Required</span>
+                        </div>
+                        <p>Check which SMTP provider is configured and active.</p>
+                        <div class="code-block">
+{
+  <span class="key">"configured"</span>: true,
+  <span class="key">"provider"</span>: <span class="string">"gmail"</span>,
+  <span class="key">"fromEmail"</span>: <span class="string">"akshaykotish@gmail.com"</span>,
+  <span class="key">"fromName"</span>: <span class="string">"Akshay Kotish &amp; Co."</span>,
+  <span class="key">"host"</span>: <span class="string">"smtp.gmail.com"</span>,
+  <span class="key">"port"</span>: 587
+}
+                        </div>
+                    </div>
+
+                    <h2>Sent Emails History</h2>
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-get">GET</span>
+                            <span class="endpoint-path">/mail/sent</span>
+                            <span class="badge">Auth Required</span>
+                        </div>
+                        <p>Retrieve the last 50 sent emails with recipient, subject, type, and timestamp.</p>
+                        <h3>Query Parameters</h3>
+                        <table class="params-table">
+                            <thead><tr><th>Param</th><th>Type</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>limit</strong></td><td>number</td><td>Max results (default: 50)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h2>Email Aliases</h2>
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-get">GET</span>
+                            <span class="endpoint-path">/mail/aliases</span>
+                            <span class="badge">Auth Required</span>
+                        </div>
+                        <p>List all registered email aliases.</p>
+                    </div>
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-post">POST</span>
+                            <span class="endpoint-path">/mail/aliases</span>
+                            <span class="badge">Auth Required</span>
+                        </div>
+                        <p>Register a new email alias.</p>
+                        <div class="code-block">
+{ <span class="key">"alias"</span>: <span class="string">"hr@akshaykotish.com"</span>, <span class="key">"displayName"</span>: <span class="string">"HR Department"</span>, <span class="key">"employeeId"</span>: <span class="string">"optional-id"</span> }
+                        </div>
+                    </div>
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-delete">DELETE</span>
+                            <span class="endpoint-path">/mail/aliases/:id</span>
+                            <span class="badge">Auth Required</span>
+                        </div>
+                        <p>Delete an email alias by its Firestore document ID.</p>
+                    </div>
+                </div>
+
+                <!-- Health Check -->
+                <div class="section" id="health">
+                    <h2>Health Check</h2>
+                    <div class="endpoint">
+                        <div class="endpoint-header">
+                            <span class="method method-get">GET</span>
+                            <span class="endpoint-path">/health</span>
+                            <span class="badge badge-public">Public</span>
+                        </div>
+                        <div class="code-block">
+{ <span class="key">"status"</span>: <span class="string">"ok"</span>, <span class="key">"timestamp"</span>: <span class="string">"2026-03-16T00:00:00.000Z"</span> }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Errors -->
+                <div class="section" id="errors">
+                    <h2>Error Handling</h2>
+                    <p>All errors return a JSON object with an <code>error</code> field:</p>
+                    <div class="code-block">
+{ <span class="key">"error"</span>: <span class="string">"Description of what went wrong"</span> }
+                    </div>
+
+                    <h3>HTTP Status Codes</h3>
+                    <table class="params-table">
+                        <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>200</strong></td><td>Success</td></tr>
+                            <tr><td><strong>201</strong></td><td>Resource created</td></tr>
+                            <tr><td><strong>400</strong></td><td>Bad request / validation error</td></tr>
+                            <tr><td><strong>401</strong></td><td>Authentication failed</td></tr>
+                            <tr><td><strong>403</strong></td><td>Insufficient permissions</td></tr>
+                            <tr><td><strong>404</strong></td><td>Resource not found</td></tr>
+                            <tr><td><strong>500</strong></td><td>Server error</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer style="background:#1a1a1a;padding:24px;text-align:center;margin-top:40px;">
+        <p style="color:#888;font-size:12px;">&copy; 2026 Akshay Kotish & Co. All rights reserved.</p>
+    </footer>
+</body>
+</html>

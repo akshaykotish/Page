@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support — Akshay Kotish & Co.</title>
+    <meta name="description" content="Get help and support from Akshay Kotish & Co. Contact us for billing, technical, or general inquiries.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fffdf7; color: #1a1a1a; line-height: 1.6; }
+        a { color: inherit; text-decoration: none; }
+
+        .header { background: #1a1a1a; padding: 16px 0; }
+        .header-inner { max-width: 900px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+        .header-brand { display: flex; align-items: center; gap: 12px; color: #fff; }
+        .header-brand .logo { width: 36px; height: 36px; background: #c0e040; border: 2px solid #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; color: #1a1a1a; }
+        .header-brand span { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 18px; color: #fff; }
+        .header-links a { color: #888; font-size: 13px; font-weight: 700; margin-left: 20px; transition: color 0.2s; }
+        .header-links a:hover { color: #c0e040; }
+
+        .hero { background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%); padding: 60px 24px; text-align: center; }
+        .hero h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 900; color: #fff; margin-bottom: 12px; }
+        .hero p { font-size: 16px; color: #c0e040; font-weight: 600; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+
+        .card { background: #fff; border: 3px solid #1a1a1a; border-radius: 14px; padding: 32px; box-shadow: 6px 6px 0 #1a1a1a; margin-bottom: 24px; }
+        .card h2 { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 900; margin-bottom: 16px; }
+        .card h3 { font-size: 16px; font-weight: 800; margin: 20px 0 8px; color: #2e7d32; }
+        .card p { font-size: 14px; color: #555; line-height: 1.8; margin-bottom: 12px; }
+        .card ul { padding-left: 20px; margin-bottom: 16px; }
+        .card li { font-size: 14px; color: #555; line-height: 1.8; margin-bottom: 4px; }
+
+        .contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 24px; }
+        .contact-card { background: #f0faf0; border: 2px solid #2e7d32; border-radius: 10px; padding: 24px; text-align: center; transition: transform 0.2s, box-shadow 0.2s; }
+        .contact-card:hover { transform: translate(-3px, -3px); box-shadow: 6px 6px 0 #1a1a1a; }
+        .contact-card .icon { font-size: 32px; margin-bottom: 12px; }
+        .contact-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 6px; color: #1a1a1a; }
+        .contact-card p { font-size: 13px; color: #555; margin: 0; }
+        .contact-card a { color: #2e7d32; font-weight: 700; text-decoration: underline; }
+
+        .faq-item { border-bottom: 2px solid #eee; padding: 16px 0; }
+        .faq-item:last-child { border-bottom: none; }
+        .faq-q { font-size: 15px; font-weight: 800; color: #1a1a1a; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .faq-q:hover { color: #2e7d32; }
+        .faq-a { font-size: 14px; color: #555; line-height: 1.8; margin-top: 8px; display: none; }
+        .faq-item.open .faq-a { display: block; }
+        .faq-item.open .faq-q .arrow { transform: rotate(180deg); }
+        .arrow { transition: transform 0.2s; font-size: 12px; }
+
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 28px; font-size: 14px; font-weight: 800; border: 3px solid #1a1a1a; border-radius: 8px; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; }
+        .btn-primary { background: #2e7d32; color: #fff; box-shadow: 4px 4px 0 #1a1a1a; }
+        .btn-primary:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #1a1a1a; }
+
+        .footer { background: #1a1a1a; padding: 24px; text-align: center; margin-top: 40px; }
+        .footer p { color: #888; font-size: 12px; }
+
+        @media (max-width: 640px) {
+            .hero h1 { font-size: 28px; }
+            .contact-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <a href="/" class="header-brand">
+                <div class="logo">AK</div>
+                <span>AK & Co.</span>
+            </a>
+            <nav class="header-links">
+                <a href="/">Home</a>
+                <a href="/api-docs">API Docs</a>
+                <a href="/dashboard/">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <h1>Support & Help</h1>
+        <p>We're here to help. Get in touch with us.</p>
+    </section>
+
+    <div class="container">
+        <!-- Contact Cards -->
+        <div class="contact-grid">
+            <div class="contact-card">
+                <div class="icon">&#9993;</div>
+                <h3>Email Us</h3>
+                <p><a href="mailto:akshaykotish@gmail.com">akshaykotish@gmail.com</a></p>
+                <p style="font-size: 12px; color: #888; margin-top: 4px;">Response within 24 hours</p>
+            </div>
+            <div class="contact-card">
+                <div class="icon">&#9742;</div>
+                <h3>Call Us</h3>
+                <p><a href="tel:+919896770369">+91 98967 70369</a></p>
+                <p style="font-size: 12px; color: #888; margin-top: 4px;">Mon-Sat, 10 AM - 7 PM IST</p>
+            </div>
+            <div class="contact-card">
+                <div class="icon">&#127760;</div>
+                <h3>Website</h3>
+                <p><a href="https://www.akshaykotish.com" target="_blank">www.akshaykotish.com</a></p>
+                <p style="font-size: 12px; color: #888; margin-top: 4px;">Visit our main website</p>
+            </div>
+        </div>
+
+        <!-- Services -->
+        <div class="card" style="margin-top: 32px;">
+            <h2>Our Services</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 16px;">
+                <div>
+                    <h3>Billing & Invoicing</h3>
+                    <p>GST-compliant invoicing, automated tax calculations, payment tracking, and Razorpay integration.</p>
+                </div>
+                <div>
+                    <h3>Accounting</h3>
+                    <p>Double-entry bookkeeping, chart of accounts, journal entries, and AI-powered ledger management.</p>
+                </div>
+                <div>
+                    <h3>Payroll & HR</h3>
+                    <p>Employee management, salary processing, auto-pay via Razorpay, PF/ESI tracking, and payslip generation.</p>
+                </div>
+                <div>
+                    <h3>Tax & Compliance</h3>
+                    <p>GST return preparation (GSTR-1, GSTR-3B), TDS management, and compliance reporting.</p>
+                </div>
+                <div>
+                    <h3>Business Documents</h3>
+                    <p>AI-drafted letters, agreements, NOCs, and proposals on company letterhead with A4 PDF export.</p>
+                </div>
+                <div>
+                    <h3>API Integration</h3>
+                    <p>REST API for payments, invoicing, and email. <a href="/api-docs" style="color: #2e7d32; text-decoration: underline;">View API documentation</a>.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="card">
+            <h2>Frequently Asked Questions</h2>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    How do I access the dashboard?
+                    <span class="arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">Visit <a href="/dashboard/" style="color: #2e7d32; text-decoration: underline;">akshaykotish.com/dashboard</a> and log in with your registered phone number. Only authorized users can access the dashboard.</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    How do I pay an invoice?
+                    <span class="arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">Click the payment link in the email you received, or log in to the dashboard and navigate to your bills. Payments are processed securely via Razorpay (UPI, cards, net banking, wallets).</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    Can I get a copy of my invoice?
+                    <span class="arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">Yes. Log in to the dashboard, go to Billing, and click "Preview" on any invoice. You can print it or save as PDF. You can also request it by emailing us.</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    What payment methods are accepted?
+                    <span class="arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">We accept UPI, debit/credit cards, net banking, and wallets via Razorpay. Bank transfers (NEFT/RTGS) are also accepted — bank details are on the invoice.</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    How do I integrate with the API?
+                    <span class="arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">Visit the <a href="/api-docs" style="color: #2e7d32; text-decoration: underline;">API Documentation</a> for endpoints, authentication, and examples. You'll need an API key — request one from your administrator.</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+                    I have a billing dispute. What do I do?
+                    <span class="arrow">&#9660;</span>
+                </div>
+                <div class="faq-a">Email us at <a href="mailto:akshaykotish@gmail.com" style="color: #2e7d32; text-decoration: underline;">akshaykotish@gmail.com</a> with your invoice number and a description of the issue. We'll respond within 24 hours.</div>
+            </div>
+        </div>
+
+        <!-- Company Info -->
+        <div class="card">
+            <h2>Company Information</h2>
+            <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                <tr><td style="padding: 8px 0; color: #888; width: 40%;">Brand Name</td><td style="padding: 8px 0; font-weight: 700;">Akshay Kotish & Co.</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">Legal Name</td><td style="padding: 8px 0; font-weight: 600;">Akshay Lakshay Kotish Private Limited</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">CIN</td><td style="padding: 8px 0; font-family: monospace;">U72900HR2022PTC101170</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">GSTIN</td><td style="padding: 8px 0; font-family: monospace;">06AAWCA4919K1Z3</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">PAN</td><td style="padding: 8px 0; font-family: monospace;">AAWCA4919K</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">Registered Address</td><td style="padding: 8px 0;">H.No. 61A/11, Gali No. 4, Nehru Garden Colony, Kaithal, Haryana - 136027</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">State</td><td style="padding: 8px 0;">Haryana (Code: 06)</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">Type</td><td style="padding: 8px 0;">Private Limited Company</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">Registration Date</td><td style="padding: 8px 0;">07 February 2022</td></tr>
+                <tr><td style="padding: 8px 0; color: #888;">Industry</td><td style="padding: 8px 0;">Computer Related Services & Business Consulting</td></tr>
+            </table>
+        </div>
+
+        <div style="text-align: center; margin-top: 32px;">
+            <a href="/dashboard/" class="btn btn-primary">Go to Dashboard</a>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>&copy; 2022–2026 Akshay Lakshay Kotish Private Limited. All rights reserved. | Branded as Akshay Kotish & Co.</p>
+    </footer>
+</body>
+</html>

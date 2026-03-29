@@ -1,0 +1,14 @@
+node_modules
+client/node_modules
+client/dist
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.md
+.claude
+.DS_Store
+.vscode
+.idea
+npm-debug.log*

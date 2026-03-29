@@ -1,0 +1,7 @@
+node_modules/
+client/node_modules/
+client/dist/
+.env
+*.log
+.DS_Store
+akshaykotish-aca69-firebase-adminsdk-yi1ji-f1a589ef5a.json

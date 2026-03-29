@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "site": "akshaykotish-aca69",
+    "public": "firebase-public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "akshaykotish-com",
+          "region": "asia-south1"
+        }
+      }
+    ]
+  }
+}
