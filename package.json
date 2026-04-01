@@ -1,6 +1,6 @@
 {
-  "name": "@anthropic/page",
-  "version": "1.0.0",
+  "name": "@akshaykotish/page",
+  "version": "1.0.1",
   "description": "A React component for rendering and editing content page by page",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",

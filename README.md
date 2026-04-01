@@ -5,14 +5,14 @@ A React component for rendering and editing content page by page with **auto-pag
 ## Installation
 
 ```bash
-npm install @anthropic/page
+npm install @akshaykotish/page
 ```
 
 ## Quick Start
 
 ```jsx
-import { Page } from "@anthropic/page";
-import "@anthropic/page/dist/page.css";
+import { Page } from "@akshaykotish/page";
+import "@akshaykotish/page/dist/page.css";
 
 const data = {
   pages: [
