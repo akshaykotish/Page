@@ -12,7 +12,12 @@ import { sendEmail as dispatchEmail, getMailConfig } from '../utils/mailer.js';
 const router = Router();
 router.use(verifyToken);
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+let _genAI;
+function getGenAI() {
+  if (!_genAI) _genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  return _genAI;
+}
+const genAI = { getGenerativeModel: (opts) => getGenAI().getGenerativeModel(opts) };
 
 // Gemini model — configurable via env, defaults to latest stable (gemini-2.5-pro)
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
@@ -22,17 +27,59 @@ const AI_TIMEOUT_MS = 45000;
 const MAX_RESPONSE_SIZE = 1024 * 1024;
 const MAX_CONVERSATION_HISTORY = 20;
 
-// ===== PARSE AI JSON RESPONSE =====
+// ===== PARSE AI JSON RESPONSE (enhanced recovery) =====
 function parseAIJson(rawText) {
   let text = rawText.trim();
+  // Strip markdown code fences
   text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+  // 1. Direct parse
   try { return JSON.parse(text); } catch {}
+
+  // 2. Extract outermost JSON object
   const objMatch = text.match(/\{[\s\S]*\}/);
   if (objMatch) { try { return JSON.parse(objMatch[0]); } catch {} }
+
+  // 3. Extract outermost JSON array
   const arrMatch = text.match(/\[[\s\S]*\]/);
   if (arrMatch) { try { return JSON.parse(arrMatch[0]); } catch {} }
+
+  // 4. Fix trailing commas
   const fixed = text.replace(/,\s*([}\]])/g, '$1');
   try { return JSON.parse(fixed); } catch {}
+
+  // 5. Fix single quotes to double quotes
+  if (objMatch) {
+    try {
+      const singleToDouble = objMatch[0]
+        .replace(/,\s*([}\]])/g, '$1')
+        .replace(/'/g, '"')
+        .replace(/(\w+)\s*:/g, '"$1":');
+      return JSON.parse(singleToDouble);
+    } catch {}
+  }
+
+  // 6. Fix unquoted keys
+  if (objMatch) {
+    try {
+      const fixedKeys = objMatch[0]
+        .replace(/,\s*([}\]])/g, '$1')
+        .replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":');
+      return JSON.parse(fixedKeys);
+    } catch {}
+  }
+
+  // 7. Handle newline-escaped strings
+  if (objMatch) {
+    try {
+      const fixedNewlines = objMatch[0]
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t');
+      return JSON.parse(fixedNewlines);
+    } catch {}
+  }
+
   throw new Error('Could not parse AI response as JSON');
 }
 
@@ -77,15 +124,19 @@ ACTIONS:
 1. CREATE_LETTER
 { "action": "CREATE_LETTER", "data": { "title": "...", "to": { "name": "...", "designation": "...", "company": "...", "address": "..." }, "subject": "Re: ...", "body": "<FULL PROFESSIONAL HTML LETTER>", "closing": "Yours faithfully" }, "message": "..." }
 
-LETTER BODY FORMAT — Generate complete, professional HTML:
-<div style="font-family: 'Georgia', 'Times New Roman', serif; font-size: 14px; line-height: 1.8; color: #1a1a1a;">
-  <p style="margin-bottom: 6px; text-align: right; font-size: 13px; color: #555;">Date: ${dateStr}</p>
-  <p style="margin-bottom: 6px; font-size: 13px; color: #555;">Ref: AK&Co/[TYPE]/[YEAR-MONTH]/001</p>
-  <p style="margin-bottom: 16px;">[Opening paragraph — reference, context]</p>
-  <p style="margin-bottom: 16px;">[Body paragraph(s) — detailed content, clear and professional]</p>
-  <p style="margin-bottom: 16px;">[Closing paragraph — next steps, call to action]</p>
+LETTER BODY FORMAT — Generate complete, professional HTML using Poppins font. DO NOT include any company name/address/letterhead header — the system adds that automatically. Start directly with the date and reference:
+<div style="font-family: 'Poppins', sans-serif; font-size: 14px; line-height: 1.8; color: #1a1a1a;">
+  <div style="text-align:right;margin-bottom:20px;">
+    <p style="margin:0;font-size:13px;color:#64748b;">Ref: AK&Co/[TYPE]/${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}/001</p>
+    <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">Date: ${dateStr}</p>
+  </div>
+  <p style="margin-bottom:16px;font-family:'Poppins',sans-serif;">[Addressee details]</p>
+  <p style="font-weight:700;text-decoration:underline;margin:16px 0;font-family:'Poppins',sans-serif;">[Subject line]</p>
+  <p style="margin-bottom:16px;font-family:'Poppins',sans-serif;">[Opening paragraph]</p>
+  <p style="margin-bottom:16px;font-family:'Poppins',sans-serif;">[Body paragraphs]</p>
+  <p style="margin-bottom:16px;font-family:'Poppins',sans-serif;">[Closing paragraph]</p>
 </div>
-Write 3-5 substantial paragraphs. Use formal Indian business English. ALWAYS include today's date (${dateStr}) at the top of the letter. Reference specific details from the user's command. Include relevant legal/financial references where appropriate (GST, IT Act sections, compliance deadlines, etc.).
+Write 3-5 substantial paragraphs. Use formal Indian business English. ALWAYS include today's date (${dateStr}). Reference specific details from the user's command. Include relevant legal/financial references where appropriate. NEVER generate a company letterhead — only body content.
 
 2. CREATE_EMAIL
 { "action": "CREATE_EMAIL", "data": { "to": "email@example.com", "subject": "...", "body": "<PROFESSIONAL HTML EMAIL>" }, "message": "..." }
@@ -133,6 +184,51 @@ EMAIL BODY FORMAT — Generate polished, branded HTML:
 12. GENERAL
 { "action": "GENERAL", "data": {}, "message": "your response" }
 
+13. CREATE_PROJECT_REPORT — Generate a detailed project status report
+{ "action": "CREATE_PROJECT_REPORT", "data": { "projectName": "...", "period": "monthly|weekly|custom", "sections": ["summary", "milestones", "budget", "risks", "next_steps"], "body": "<FULL PROFESSIONAL HTML REPORT>" }, "message": "..." }
+
+14. CREATE_PAYSLIP — Generate employee payslip
+{ "action": "CREATE_PAYSLIP", "data": { "employeeName": "...", "month": "March 2026", "basicSalary": 0, "allowances": { "hra": 0, "da": 0, "special": 0 }, "deductions": { "pf": 0, "tax": 0, "other": 0 }, "netPay": 0, "body": "<PAYSLIP HTML>" }, "message": "..." }
+
+15. ANALYZE_FINANCIALS — Analyze financial data and provide insights
+{ "action": "ANALYZE_FINANCIALS", "data": { "analysisType": "revenue|expenses|profit|cashflow|gst|tax", "period": "...", "insights": ["..."], "recommendations": ["..."], "summary": "..." }, "message": "detailed financial analysis" }
+
+16. SUMMARIZE_EMAILS — Summarize recent email communications
+{ "action": "SUMMARIZE_EMAILS", "data": { "count": 0, "summaries": [{ "from": "...", "subject": "...", "summary": "...", "priority": "high|medium|low" }] }, "message": "email summary" }
+
+17. CREATE_RECEIPT — Generate a payment receipt
+{ "action": "CREATE_RECEIPT", "data": { "receiptNumber": "REC-YYYY-NNNN", "customerName": "...", "amount": 0, "paymentMethod": "bank_transfer|cash|upi|cheque", "description": "...", "date": "${isoDate}", "body": "<RECEIPT HTML>" }, "message": "..." }
+
+18. CREATE_STATEMENT — Generate account statement
+{ "action": "CREATE_STATEMENT", "data": { "clientName": "...", "period": "...", "entries": [{ "date": "...", "description": "...", "debit": 0, "credit": 0, "balance": 0 }], "openingBalance": 0, "closingBalance": 0, "body": "<STATEMENT HTML>" }, "message": "..." }
+
+19. CREATE_AGREEMENT — Generate legal agreement/contract
+{ "action": "CREATE_AGREEMENT", "data": { "title": "...", "parties": [{ "name": "...", "role": "..." }], "terms": ["..."], "body": "<AGREEMENT HTML>" }, "message": "..." }
+
+MULTI-ACTION CHAINS:
+When a user requests multiple actions in one command (e.g., "create an invoice and email it to client@example.com"), return a chain:
+{ "action": "MULTI_ACTION", "data": { "actions": [
+  { "action": "CREATE_INVOICE", "data": { ... }, "message": "..." },
+  { "action": "SEND_EMAIL", "data": { ... }, "message": "..." }
+], "chainDescription": "Create invoice and email it" }, "message": "I'll create the invoice and then email it to the client." }
+Chain examples:
+- "Create invoice and send it" → CREATE_INVOICE + SEND_EMAIL
+- "Generate payslip for Ravi and email it" → CREATE_PAYSLIP + SEND_EMAIL
+- "Create project report and send to team" → CREATE_PROJECT_REPORT + SEND_EMAIL
+- "Record payment and send receipt" → RECORD_PAYMENT + CREATE_RECEIPT + SEND_EMAIL
+
+SMART SUGGESTIONS:
+After every response, include a "suggestions" array with 2-4 contextual follow-up actions the user might want:
+{ "action": "...", "data": {...}, "message": "...", "suggestions": [
+  { "label": "Email this invoice", "prompt": "Email this invoice to the client" },
+  { "label": "Create another invoice", "prompt": "Create a new invoice for..." },
+  { "label": "View all invoices", "prompt": "Show me all pending invoices" }
+] }
+Make suggestions relevant to the action just performed. If the user created a letter, suggest emailing it. If they added an employee, suggest creating a payslip.
+
+DOCUMENT CONTEXT:
+When the user references an existing document (e.g., "send the last invoice", "resend the agreement"), look up the BUSINESS DATA provided and use the relevant document's details. Reference existing invoices by number, projects by name, employees by name.
+
 INTELLIGENCE RULES:
 - NEVER ask the user for company details — you already have them.
 - If user says "letter to Sharma about tax filing" — write the FULL letter immediately. Infer Sharma is a client, use appropriate formal tone, reference relevant tax provisions.
@@ -149,16 +245,16 @@ INTELLIGENCE RULES:
 
 // ===== FETCH BUSINESS CONTEXT =====
 async function getBusinessContext() {
-  const context = { employees: [], projects: [], recentInvoices: [], recentPayments: [] };
+  const context = { employees: [], projects: [], recentInvoices: [], recentPayments: [], recentDocuments: [], templates: [], recentEmails: [] };
 
   try {
     const empSnap = await db.collection('employees').where('status', '==', 'active').get();
-    context.employees = empSnap.docs.map(d => ({ id: d.id, name: d.data().name, email: d.data().email, designation: d.data().designation, department: d.data().department }));
+    context.employees = empSnap.docs.map(d => ({ id: d.id, name: d.data().name, email: d.data().email, designation: d.data().designation, department: d.data().department, salary: d.data().salary, phone: d.data().phone }));
   } catch {}
 
   try {
     const projSnap = await db.collection('projects').orderBy('createdAt', 'desc').limit(20).get();
-    context.projects = projSnap.docs.map(d => ({ id: d.id, name: d.data().name, client: d.data().client, status: d.data().status, budget: d.data().budget }));
+    context.projects = projSnap.docs.map(d => ({ id: d.id, name: d.data().name, client: d.data().client, status: d.data().status, budget: d.data().budget, description: d.data().description, deadline: d.data().deadline }));
   } catch {
     try {
       const projSnap = await db.collection('projects').get();
@@ -167,13 +263,28 @@ async function getBusinessContext() {
   }
 
   try {
-    const invSnap = await db.collection('invoices').orderBy('createdAt', 'desc').limit(10).get();
-    context.recentInvoices = invSnap.docs.map(d => ({ id: d.id, number: d.data().invoiceNumber, customer: d.data().customer?.name, total: d.data().total, status: d.data().status }));
+    const invSnap = await db.collection('invoices').orderBy('createdAt', 'desc').limit(15).get();
+    context.recentInvoices = invSnap.docs.map(d => ({ id: d.id, number: d.data().invoiceNumber, customer: d.data().customer?.name, customerEmail: d.data().customer?.email, total: d.data().total, status: d.data().status, date: d.data().date, dueDate: d.data().dueDate }));
   } catch {}
 
   try {
-    const paySnap = await db.collection('payments').orderBy('createdAt', 'desc').limit(10).get();
-    context.recentPayments = paySnap.docs.map(d => ({ id: d.id, paymentId: d.data().paymentId, amount: d.data().amount, type: d.data().type, description: d.data().description }));
+    const paySnap = await db.collection('payments').orderBy('createdAt', 'desc').limit(15).get();
+    context.recentPayments = paySnap.docs.map(d => ({ id: d.id, paymentId: d.data().paymentId, amount: d.data().amount, type: d.data().type, description: d.data().description, date: d.data().date, method: d.data().method }));
+  } catch {}
+
+  try {
+    const docSnap = await db.collection('documents').orderBy('createdAt', 'desc').limit(10).get();
+    context.recentDocuments = docSnap.docs.map(d => ({ id: d.id, title: d.data().title, type: d.data().type, createdAt: d.data().createdAt }));
+  } catch {}
+
+  try {
+    const tplSnap = await db.collection('templates').limit(10).get();
+    context.templates = tplSnap.docs.map(d => ({ id: d.id, name: d.data().name, type: d.data().type, description: d.data().description }));
+  } catch {}
+
+  try {
+    const emailSnap = await db.collection('emails').orderBy('createdAt', 'desc').limit(10).get();
+    context.recentEmails = emailSnap.docs.map(d => ({ id: d.id, from: d.data().from, to: d.data().to, subject: d.data().subject, date: d.data().createdAt, read: d.data().read }));
   } catch {}
 
   return context;
@@ -214,11 +325,14 @@ router.post('/command', aiLimiter, validate('aiCommand'), asyncHandler(async (re
   const bizData = await getBusinessContext();
 
   const systemPrompt = buildSystemPrompt(companyContext);
-  const contextMessage = `CURRENT BUSINESS DATA (use for reference):
+  const contextMessage = `CURRENT BUSINESS DATA (use for reference — reference these when user mentions existing documents, clients, employees):
 Employees: ${JSON.stringify(bizData.employees)}
 Projects: ${JSON.stringify(bizData.projects)}
 Recent Invoices: ${JSON.stringify(bizData.recentInvoices)}
-Recent Payments: ${JSON.stringify(bizData.recentPayments)}`;
+Recent Payments: ${JSON.stringify(bizData.recentPayments)}
+Recent Documents: ${JSON.stringify(bizData.recentDocuments)}
+Saved Templates: ${JSON.stringify(bizData.templates)}
+Recent Emails: ${JSON.stringify(bizData.recentEmails)}`;
 
   const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
@@ -244,7 +358,7 @@ Recent Payments: ${JSON.stringify(bizData.recentPayments)}`;
         systemInstruction: { parts: [{ text: systemPrompt }] },
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 4096,
+          maxOutputTokens: 8192,
           responseMimeType: 'application/json',
         },
       }),
@@ -264,12 +378,37 @@ Recent Payments: ${JSON.stringify(bizData.recentPayments)}`;
     } catch {
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        aiResponse = JSON.parse(jsonMatch[0]);
+        try { aiResponse = JSON.parse(jsonMatch[0]); }
+        catch { aiResponse = { action: 'GENERAL', data: {}, message: responseText }; }
       } else {
         aiResponse = { action: 'GENERAL', data: {}, message: responseText };
       }
     }
 
+    // Ensure suggestions array exists
+    if (!aiResponse.suggestions) {
+      aiResponse.suggestions = [];
+    }
+
+    // Enhanced audit log with full action details
+    await db.collection('ai_audit_log').add({
+      userId: req.user.uid,
+      userName: req.user.name || req.user.email || 'unknown',
+      prompt: prompt.substring(0, 2000),
+      action: aiResponse.action,
+      isMultiAction: aiResponse.action === 'MULTI_ACTION',
+      actionCount: aiResponse.action === 'MULTI_ACTION' ? (aiResponse.data?.actions?.length || 0) : 1,
+      hasSuggestions: aiResponse.suggestions.length > 0,
+      response: {
+        action: aiResponse.action,
+        message: (aiResponse.message || '').substring(0, 500),
+        suggestions: aiResponse.suggestions,
+      },
+      status: 'completed',
+      timestamp: new Date().toISOString(),
+    });
+
+    // Also keep backward-compatible ai_logs
     await db.collection('ai_logs').add({
       userId: req.user.uid,
       prompt: prompt.substring(0, 1000),
@@ -285,6 +424,7 @@ Recent Payments: ${JSON.stringify(bizData.recentPayments)}`;
       event: 'ai_command_executed',
       userId: req.user.uid,
       action: aiResponse.action,
+      isMultiAction: aiResponse.action === 'MULTI_ACTION',
       timestamp: new Date().toISOString()
     }));
 
@@ -298,12 +438,76 @@ Recent Payments: ${JSON.stringify(bizData.recentPayments)}`;
       timestamp: new Date().toISOString()
     }));
 
+    // Log failed commands for audit
+    try {
+      await db.collection('ai_audit_log').add({
+        userId: req.user.uid,
+        prompt: prompt.substring(0, 2000),
+        action: 'ERROR',
+        status: 'failed',
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
+
     if (error.message.includes('timeout')) {
       throw new ServiceUnavailableError('AI API request timeout. Please try again.');
     }
     throw error;
   }
 }));
+
+// ===== INTERNAL ACTION EXECUTOR (for multi-action chains) =====
+async function executeActionInternal(action, data, userId) {
+  switch (action) {
+    case 'SEND_EMAIL': {
+      const info = await dispatchEmail({ to: data.to, subject: data.subject, html: data.body });
+      return { success: true, messageId: info.messageId, message: `Email sent to ${data.to}` };
+    }
+    case 'CREATE_LETTER':
+    case 'CREATE_EMAIL': {
+      const doc = {
+        title: data.title || data.subject || 'Untitled',
+        type: action === 'CREATE_LETTER' ? 'letter' : 'email_draft',
+        content: JSON.stringify(data),
+        createdBy: userId,
+        createdAt: new Date().toISOString(),
+      };
+      const docRef = await db.collection('documents').add(doc);
+      return { success: true, id: docRef.id, message: `${action === 'CREATE_LETTER' ? 'Letter' : 'Email draft'} saved` };
+    }
+    case 'CREATE_RECEIPT': {
+      const receiptNum = data.receiptNumber || `REC-${new Date().getFullYear()}-${uuidv4().slice(0, 4).toUpperCase()}`;
+      const receipt = {
+        receiptNumber: receiptNum, customerName: data.customerName, amount: data.amount || 0,
+        paymentMethod: data.paymentMethod || 'bank_transfer', description: data.description || '',
+        date: data.date || new Date().toISOString(), content: data.body || '',
+        createdBy: userId, createdAt: new Date().toISOString(),
+      };
+      const docRef = await db.collection('receipts').add(receipt);
+      return { success: true, id: docRef.id, receiptNumber: receiptNum, message: `Receipt ${receiptNum} created` };
+    }
+    case 'CREATE_PROJECT_REPORT': {
+      const doc = {
+        title: `Project Report — ${data.projectName || 'Untitled'}`, type: 'project_report',
+        content: data.body || JSON.stringify(data), createdBy: userId, createdAt: new Date().toISOString(),
+      };
+      const docRef = await db.collection('documents').add(doc);
+      return { success: true, id: docRef.id, message: `Project report created` };
+    }
+    case 'CREATE_PAYSLIP': {
+      const payslip = {
+        employeeName: data.employeeName, month: data.month, basicSalary: data.basicSalary || 0,
+        allowances: data.allowances || {}, deductions: data.deductions || {}, netPay: data.netPay || 0,
+        content: data.body || '', createdBy: userId, createdAt: new Date().toISOString(),
+      };
+      const docRef = await db.collection('payslips').add(payslip);
+      return { success: true, id: docRef.id, message: `Payslip for ${data.employeeName} created` };
+    }
+    default:
+      return { success: true, message: `Action ${action} noted` };
+  }
+}
 
 // ===== EXECUTE ACTION =====
 router.post('/execute', asyncHandler(async (req, res) => {
@@ -621,9 +825,170 @@ router.post('/execute', asyncHandler(async (req, res) => {
         break;
       }
 
+      case 'CREATE_PROJECT_REPORT': {
+        const doc = {
+          title: `Project Report — ${data.projectName || 'Untitled'}`,
+          type: 'project_report',
+          projectName: data.projectName,
+          period: data.period || 'monthly',
+          sections: data.sections || [],
+          content: data.body || JSON.stringify(data),
+          createdBy: req.user.uid,
+          createdAt: new Date().toISOString(),
+        };
+        const docRef = await db.collection('documents').add(doc);
+        result = { success: true, id: docRef.id, message: `Project report for "${data.projectName}" created` };
+        break;
+      }
+
+      case 'CREATE_PAYSLIP': {
+        const payslip = {
+          employeeName: data.employeeName,
+          month: data.month,
+          basicSalary: data.basicSalary || 0,
+          allowances: data.allowances || {},
+          deductions: data.deductions || {},
+          netPay: data.netPay || 0,
+          content: data.body || '',
+          createdBy: req.user.uid,
+          createdAt: new Date().toISOString(),
+        };
+        const docRef = await db.collection('payslips').add(payslip);
+
+        // Also save as a document for easy retrieval
+        await db.collection('documents').add({
+          title: `Payslip — ${data.employeeName} — ${data.month}`,
+          type: 'payslip',
+          content: data.body || JSON.stringify(payslip),
+          createdBy: req.user.uid,
+          createdAt: new Date().toISOString(),
+        });
+
+        result = { success: true, id: docRef.id, message: `Payslip for ${data.employeeName} (${data.month}) created — Net Pay: ₹${(data.netPay || 0).toLocaleString('en-IN')}` };
+        break;
+      }
+
+      case 'ANALYZE_FINANCIALS': {
+        const doc = {
+          title: `Financial Analysis — ${data.analysisType || 'General'} — ${data.period || 'Current'}`,
+          type: 'financial_analysis',
+          analysisType: data.analysisType,
+          period: data.period,
+          insights: data.insights || [],
+          recommendations: data.recommendations || [],
+          summary: data.summary || '',
+          createdBy: req.user.uid,
+          createdAt: new Date().toISOString(),
+        };
+        const docRef = await db.collection('documents').add(doc);
+        result = { success: true, id: docRef.id, message: `Financial analysis (${data.analysisType}) completed` };
+        break;
+      }
+
+      case 'SUMMARIZE_EMAILS': {
+        result = { success: true, message: `Summarized ${data.count || 0} emails`, summaries: data.summaries || [] };
+        break;
+      }
+
+      case 'CREATE_RECEIPT': {
+        const receiptNum = data.receiptNumber || `REC-${new Date().getFullYear()}-${uuidv4().slice(0, 4).toUpperCase()}`;
+        const receipt = {
+          receiptNumber: receiptNum,
+          customerName: data.customerName,
+          amount: data.amount || 0,
+          paymentMethod: data.paymentMethod || 'bank_transfer',
+          description: data.description || '',
+          date: data.date || new Date().toISOString(),
+          content: data.body || '',
+          createdBy: req.user.uid,
+          createdAt: new Date().toISOString(),
+        };
+        const docRef = await db.collection('receipts').add(receipt);
+
+        await db.collection('documents').add({
+          title: `Receipt ${receiptNum} — ${data.customerName}`,
+          type: 'receipt',
+          content: data.body || JSON.stringify(receipt),
+          createdBy: req.user.uid,
+          createdAt: new Date().toISOString(),
+        });
+
+        result = { success: true, id: docRef.id, receiptNumber: receiptNum, message: `Receipt ${receiptNum} created for ₹${(data.amount || 0).toLocaleString('en-IN')}` };
+        break;
+      }
+
+      case 'CREATE_STATEMENT': {
+        const doc = {
+          title: `Statement — ${data.clientName || 'Unknown'} — ${data.period || 'Current'}`,
+          type: 'account_statement',
+          clientName: data.clientName,
+          period: data.period,
+          entries: data.entries || [],
+          openingBalance: data.openingBalance || 0,
+          closingBalance: data.closingBalance || 0,
+          content: data.body || JSON.stringify(data),
+          createdBy: req.user.uid,
+          createdAt: new Date().toISOString(),
+        };
+        const docRef = await db.collection('documents').add(doc);
+        result = { success: true, id: docRef.id, message: `Account statement for "${data.clientName}" created` };
+        break;
+      }
+
+      case 'CREATE_AGREEMENT': {
+        const doc = {
+          title: data.title || 'Untitled Agreement',
+          type: 'agreement',
+          parties: data.parties || [],
+          terms: data.terms || [],
+          content: data.body || JSON.stringify(data),
+          createdBy: req.user.uid,
+          createdAt: new Date().toISOString(),
+        };
+        const docRef = await db.collection('documents').add(doc);
+        result = { success: true, id: docRef.id, message: `Agreement "${data.title}" created` };
+        break;
+      }
+
+      case 'MULTI_ACTION': {
+        // Execute each action in the chain sequentially
+        const chainActions = data.actions || [];
+        const chainResults = [];
+
+        for (const chainItem of chainActions) {
+          try {
+            // Recursive internal execution for each action in the chain
+            const chainResult = await executeActionInternal(chainItem.action, chainItem.data, req.user.uid);
+            chainResults.push({ action: chainItem.action, ...chainResult });
+          } catch (chainErr) {
+            chainResults.push({ action: chainItem.action, success: false, message: chainErr.message });
+          }
+        }
+
+        const allSuccess = chainResults.every(r => r.success);
+        result = {
+          success: allSuccess,
+          chainResults,
+          message: allSuccess
+            ? `All ${chainResults.length} actions completed successfully`
+            : `${chainResults.filter(r => r.success).length}/${chainResults.length} actions completed`,
+        };
+        break;
+      }
+
       default:
         result = { success: true, message: 'Noted' };
     }
+
+    // Log execution to audit trail
+    await db.collection('ai_audit_log').add({
+      userId: req.user.uid,
+      action,
+      executionStatus: result.success ? 'success' : 'failure',
+      resultMessage: (result.message || '').substring(0, 500),
+      type: 'execution',
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error(JSON.stringify({
       level: 'error',
@@ -633,6 +998,19 @@ router.post('/execute', asyncHandler(async (req, res) => {
       error: error.message,
       timestamp: new Date().toISOString()
     }));
+
+    // Audit log for failed executions
+    try {
+      await db.collection('ai_audit_log').add({
+        userId: req.user.uid,
+        action,
+        executionStatus: 'error',
+        error: error.message,
+        type: 'execution',
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
+
     throw error;
   }
 
@@ -694,6 +1072,124 @@ router.get('/history', asyncHandler(async (req, res) => {
   }
 }));
 
+// ===== SAVE CONVERSATION =====
+router.post('/conversations', asyncHandler(async (req, res) => {
+  const { title, messages } = req.body;
+
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    throw new ValidationError('Conversation save failed', ['messages array is required']);
+  }
+
+  const conversation = {
+    title: title || `Conversation — ${new Date().toLocaleDateString('en-IN')}`,
+    messages: messages.slice(0, 200), // Cap at 200 messages
+    messageCount: messages.length,
+    userId: req.user.uid,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const docRef = await db.collection('ai_conversations').add(conversation);
+  res.json({ success: true, id: docRef.id, message: 'Conversation saved' });
+}));
+
+// ===== LIST SAVED CONVERSATIONS =====
+router.get('/conversations', asyncHandler(async (req, res) => {
+  try {
+    const snap = await db.collection('ai_conversations')
+      .where('userId', '==', req.user.uid)
+      .orderBy('updatedAt', 'desc')
+      .limit(50)
+      .get();
+
+    const conversations = snap.docs.map(d => ({
+      id: d.id,
+      title: d.data().title,
+      messageCount: d.data().messageCount,
+      createdAt: d.data().createdAt,
+      updatedAt: d.data().updatedAt,
+    }));
+
+    res.json({ conversations });
+  } catch {
+    // Fallback without orderBy index
+    const snap = await db.collection('ai_conversations').get();
+    const conversations = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => d.userId === req.user.uid)
+      .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+      .slice(0, 50)
+      .map(({ id, title, messageCount, createdAt, updatedAt }) => ({ id, title, messageCount, createdAt, updatedAt }));
+
+    res.json({ conversations });
+  }
+}));
+
+// ===== LOAD CONVERSATION =====
+router.get('/conversations/:id', asyncHandler(async (req, res) => {
+  const doc = await db.collection('ai_conversations').doc(req.params.id).get();
+
+  if (!doc.exists) {
+    throw new ValidationError('Conversation not found', ['Invalid conversation ID']);
+  }
+
+  const data = doc.data();
+  if (data.userId !== req.user.uid) {
+    throw new ValidationError('Access denied', ['You do not own this conversation']);
+  }
+
+  res.json({ id: doc.id, ...data });
+}));
+
+// ===== DELETE CONVERSATION =====
+router.delete('/conversations/:id', asyncHandler(async (req, res) => {
+  const doc = await db.collection('ai_conversations').doc(req.params.id).get();
+
+  if (!doc.exists) {
+    throw new ValidationError('Conversation not found', ['Invalid conversation ID']);
+  }
+
+  if (doc.data().userId !== req.user.uid) {
+    throw new ValidationError('Access denied', ['You do not own this conversation']);
+  }
+
+  await doc.ref.delete();
+  res.json({ success: true, message: 'Conversation deleted' });
+}));
+
+// ===== AI AUDIT LOG =====
+router.get('/audit-log', asyncHandler(async (req, res) => {
+  const { page = '1', limit = '50' } = req.query;
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+  const offset = (pageNum - 1) * limitNum;
+
+  try {
+    const snap = await db.collection('ai_audit_log')
+      .where('userId', '==', req.user.uid)
+      .orderBy('timestamp', 'desc')
+      .limit(200)
+      .get();
+
+    const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const total = logs.length;
+    const paginated = logs.slice(offset, offset + limitNum);
+
+    res.json({ logs: paginated, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } });
+  } catch {
+    const snap = await db.collection('ai_audit_log').get();
+    const logs = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => d.userId === req.user.uid)
+      .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+
+    const total = logs.length;
+    const paginated = logs.slice(offset, offset + limitNum);
+
+    res.json({ logs: paginated, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } });
+  }
+}));
+
 // ===== PROFESSIONAL TEMPLATE PRESETS =====
 function buildProfessionalTemplate(type, style, w, h, cp) {
   const name = cp.name || 'Akshay Kotish & Co.';
@@ -717,18 +1213,16 @@ function buildProfessionalTemplate(type, style, w, h, cp) {
 
   if (type === 'letterhead' || type === 'bill_header') {
     return [
-      { type: 'rect', left: 0, top: 0, width: w, height: 6, fill: colors.primary, rx: 0, ry: 0 },
-      { type: 'i-text', text: name, left: 30, top: 24, fontSize: 28, fontFamily: 'Playfair Display', fontWeight: 'bold', fill: colors.dark },
-      { type: 'i-text', text: legalName, left: 30, top: 58, fontSize: 10, fontFamily: 'Inter', fontWeight: 'normal', fill: '#888888', fontStyle: 'italic' },
-      { type: 'i-text', text: 'Chartered Accountants & Business Consultants', left: 30, top: 74, fontSize: 11, fontFamily: 'Inter', fontWeight: 'normal', fill: colors.primary },
-      { type: 'i-text', text: `GSTIN: ${gstin}`, left: 30, top: 96, fontSize: 10, fontFamily: 'JetBrains Mono', fontWeight: 'bold', fill: colors.dark },
-      { type: 'i-text', text: `CIN: ${cin}`, left: 250, top: 96, fontSize: 10, fontFamily: 'JetBrains Mono', fontWeight: 'normal', fill: '#666666' },
-      { type: 'textbox', text: `${email}\n${phone}\n${website}`, left: w - 230, top: 24, width: 200, fontSize: 11, fontFamily: 'Inter', fontWeight: 'normal', fill: '#555555', textAlign: 'right', lineHeight: 1.8 },
-      { type: 'textbox', text: addr, left: w - 280, top: 80, width: 250, fontSize: 9, fontFamily: 'Inter', fontWeight: 'normal', fill: '#888888', textAlign: 'right', lineHeight: 1.5 },
-      { type: 'rect', left: w - 290, top: 20, width: 2, height: h - 50, fill: colors.accent },
-      { type: 'rect', left: 0, top: h - 4, width: w, height: 4, fill: colors.primary },
+      { type: 'rect', left: 0, top: 0, width: w, height: 4, fill: colors.primary, rx: 0, ry: 0 },
+      { type: 'i-text', text: name.toUpperCase(), left: 30, top: 24, fontSize: 26, fontFamily: 'Poppins', fontWeight: 'bold', fill: colors.dark },
+      { type: 'i-text', text: `A Brand of ${legalName}`, left: 30, top: 56, fontSize: 10, fontFamily: 'Poppins', fontWeight: 'normal', fill: '#64748b' },
+      { type: 'i-text', text: 'Chartered Accountants & Business Consultants', left: 30, top: 72, fontSize: 11, fontFamily: 'Poppins', fontWeight: 'normal', fill: colors.primary },
+      { type: 'i-text', text: `GSTIN: ${gstin}  |  CIN: ${cin}  |  PAN: ${pan}`, left: 30, top: 96, fontSize: 9, fontFamily: 'Poppins', fontWeight: 'normal', fill: '#94a3b8' },
+      { type: 'textbox', text: `${email}\n${phone}\n${website}`, left: w - 230, top: 24, width: 200, fontSize: 11, fontFamily: 'Poppins', fontWeight: 'normal', fill: '#475569', textAlign: 'right', lineHeight: 1.8 },
+      { type: 'textbox', text: addr, left: w - 280, top: 80, width: 250, fontSize: 9, fontFamily: 'Poppins', fontWeight: 'normal', fill: '#94a3b8', textAlign: 'right', lineHeight: 1.5 },
+      { type: 'rect', left: 0, top: h - 3, width: w, height: 3, fill: colors.primary },
       ...(type === 'bill_header' ? [
-        { type: 'i-text', text: 'TAX INVOICE', left: w - 230, top: 24, fontSize: 22, fontFamily: 'Playfair Display', fontWeight: 'bold', fill: colors.primary, charSpacing: 300, textAlign: 'right' },
+        { type: 'i-text', text: 'TAX INVOICE', left: w - 230, top: 24, fontSize: 22, fontFamily: 'Poppins', fontWeight: 'bold', fill: colors.primary, charSpacing: 300, textAlign: 'right' },
       ] : []),
     ];
   }
@@ -968,10 +1462,10 @@ router.post('/draft-document', asyncHandler(async (req, res) => {
 
   const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
-  const systemPrompt = `You are a professional document drafting assistant for "${companyName}" (${companyLegalName}), a chartered accountancy and business consulting firm in India.
+  const systemPrompt = `You are a professional document drafting assistant for "${companyName}" (A Brand of ${companyLegalName}), a chartered accountancy and business consulting firm in India.
 
-COMPANY DETAILS (use in all documents):
-Name: ${companyName} | Legal: ${companyLegalName}
+COMPANY DETAILS (use where needed in body text, NOT in a header):
+Name: ${companyName} | Legal: A Brand of ${companyLegalName}
 CIN: ${companyCIN} | GSTIN: ${companyGSTIN} | PAN: ${companyPAN}
 Address: ${companyAddress}
 Phone: ${companyPhone} | Email: ${companyEmail} | Website: ${companyWebsite}
@@ -981,25 +1475,36 @@ Generate a professional, complete document with proper HTML formatting. Return O
 {
   "title": "Document title",
   "type": "Letter|Agreement|Notice|General",
-  "content": "<Full HTML content of the document>",
+  "content": "<Full HTML content of the BODY ONLY — no company letterhead header>",
   "summary": "One-line description"
 }
 
+CRITICAL RULES:
+- DO NOT generate any company letterhead/header at the top. The system automatically adds a professional letterhead header with the company name, address, GSTIN, etc. You MUST only generate the BODY content of the document.
+- DO NOT include the company name, address, phone, email, GSTIN, CIN, PAN as a centered header block. Start directly with the document body.
+- Use font-family: 'Poppins', sans-serif for ALL text styles.
+
 DOCUMENT FORMAT REQUIREMENTS:
 - Write COMPLETE documents, not outlines. Include full paragraphs, clauses, terms as applicable.
-- Use clean HTML with inline styles for professional rendering.
-- For LETTERS: Include today's date (${todayFormatted}) at the top right, reference number (Ref: AK&Co/[TYPE]/${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}/001), addressee, subject line, salutation, 3-5 body paragraphs, closing, and signature block.
+- Use clean HTML with inline styles. All text must use font-family:'Poppins',sans-serif.
+- For LETTERS: Start with a right-aligned date and reference block, then addressee, subject line, salutation, 3-5 body paragraphs, closing, and signature block. Example:
+  <div style="text-align:right;margin-bottom:20px;font-family:'Poppins',sans-serif;">
+    <p style="margin:0;font-size:13px;color:#64748b;">Ref: AK&Co/[TYPE]/${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}/001</p>
+    <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">Date: ${todayFormatted}</p>
+  </div>
 - For AGREEMENTS: Include parties, recitals, numbered clauses, terms & conditions, signatures section.
 - For NOTICES: Include date, reference, addressee, subject, notice body with legal references.
 - Use formal Indian business English with proper legal terminology where appropriate.
 - Reference relevant Indian laws/sections (IT Act, GST Act, Companies Act 2013, etc.) when applicable.
-- Format content with proper headings: <h2>, <h3> tags with styles.
-- Paragraphs: <p style="margin-bottom:12px;font-size:14px;line-height:1.8;color:#1a1a1a;">
+- Headings: <h2 style="font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;color:#1a1a1a;margin:24px 0 12px;">
+- Subheadings: <h3 style="font-family:'Poppins',sans-serif;font-size:15px;font-weight:600;color:#334155;margin:16px 0 8px;">
+- Paragraphs: <p style="margin-bottom:12px;font-size:14px;line-height:1.8;color:#1a1a1a;font-family:'Poppins',sans-serif;">
+- Subject lines: <p style="font-family:'Poppins',sans-serif;font-size:15px;font-weight:700;text-decoration:underline;margin:16px 0;">
 - Include signature block at the bottom:
-  <div style="margin-top:40px;">
-    <p style="margin:0;font-weight:700;">For ${companyName}</p>
-    <p style="margin:40px 0 4px;font-weight:700;">________________________</p>
-    <p style="margin:0;font-weight:600;">Authorized Signatory</p>
+  <div style="margin-top:48px;font-family:'Poppins',sans-serif;">
+    <p style="margin:0;font-weight:600;font-size:13px;color:#1a1a1a;">For ${companyName}</p>
+    <p style="margin:44px 0 4px;font-weight:600;color:#94a3b8;">________________________</p>
+    <p style="margin:0;font-weight:600;font-size:13px;color:#1a1a1a;">Authorized Signatory</p>
   </div>
 - Be SMART: infer all details from the prompt. Never leave [PLACEHOLDER] text — use reasonable defaults.`;
 

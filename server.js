@@ -1,12 +1,11 @@
+import 'dotenv/config';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 // ─── Environment Validation ───────────────────────────────────────────────────
 
@@ -126,6 +125,12 @@ import posteRoutes from './routes/poste.js';
 import expenseRoutes from './routes/expenses.js';
 import accountingRoutes from './routes/accounting.js';
 import loanRoutes from './routes/loans.js';
+import clientPortalRoutes from './routes/client-portal.js';
+import headerFooterRoutes from './routes/header-footer.js';
+import companyRoutes from './routes/companies.js';
+import apiGatewayRoutes from './routes/api-gateway.js';
+import docDrafterRoutes from './routes/doc-drafter.js';
+import stampsSignaturesRoutes from './routes/stamps-signatures.js';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/billing', billingRoutes);
@@ -141,6 +146,12 @@ app.use('/api/poste', posteRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/loans', loanRoutes);
+app.use('/api/client', clientPortalRoutes);
+app.use('/api/header-footer', headerFooterRoutes);
+app.use('/api/companies', companyRoutes);
+app.use('/api/gateway', apiGatewayRoutes);
+app.use('/api/doc-drafter', docDrafterRoutes);
+app.use('/api/stamps-signatures', stampsSignaturesRoutes);
 
 // Ensure standard chart of accounts exists on startup
 ensureStandardAccounts().catch(err => {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { auth, db } from '../firebase-admin.js';
-import { verifyToken, requireRole } from '../middleware/auth.js';
+import { verifyToken, requireRole, requirePermission, ALL_PERMISSIONS, ROLE_TEMPLATES, resolvePermissions, getAllPermissionKeys } from '../middleware/auth.js';
 import { asyncHandler, NotFoundError, ValidationError, ConflictError, UnauthorizedError, ForbiddenError } from '../middleware/errorHandler.js';
 import { validate } from '../middleware/validator.js';
 import { otpLimiter, authLimiter, apiLimiter } from '../middleware/rateLimiter.js';
@@ -217,6 +217,7 @@ router.post('/verify-email-otp', authLimiter, validate('verifyOtp'), asyncHandle
     timestamp: new Date().toISOString(),
   }));
 
+  const userPermissions = resolvePermissions({ ...userData, uid: userDoc.id });
   res.json({
     token: customToken,
     user: {
@@ -224,6 +225,8 @@ router.post('/verify-email-otp', authLimiter, validate('verifyOtp'), asyncHandle
       name: userData.name,
       email: userData.email,
       role: userData.role,
+      permissions: userPermissions,
+      customRole: userData.customRole || null,
     },
   });
 }));
@@ -250,6 +253,7 @@ router.post('/check-user', verifyToken, asyncHandler(async (req, res) => {
     timestamp: new Date().toISOString(),
   }));
 
+  const permissions = resolvePermissions(req.user);
   res.json({
     id: req.user.uid,
     name: req.user.name,
@@ -257,17 +261,22 @@ router.post('/check-user', verifyToken, asyncHandler(async (req, res) => {
     email: req.user.email,
     role: req.user.role,
     status: req.user.status,
+    permissions,
+    customRole: req.user.customRole || null,
   });
 }));
 
 // Get current user
 router.get('/me', verifyToken, asyncHandler(async (req, res) => {
+  const permissions = resolvePermissions(req.user);
   res.json({
     id: req.user.uid,
     name: req.user.name,
     phone: req.user.phone,
     email: req.user.email,
     role: req.user.role,
+    permissions,
+    customRole: req.user.customRole || null,
   });
 }));
 
@@ -417,6 +426,216 @@ router.delete('/users/:id', verifyToken, requireRole('superadmin'), asyncHandler
   }));
 
   res.json({ success: true, message: 'User deactivated' });
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERMISSIONS ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Get all available permissions (schema)
+router.get('/permissions/schema', verifyToken, requireRole('superadmin', 'admin'), asyncHandler(async (req, res) => {
+  res.json({
+    modules: ALL_PERMISSIONS,
+    allKeys: getAllPermissionKeys(),
+    roleTemplates: ROLE_TEMPLATES,
+  });
+}));
+
+// Get current user's resolved permissions
+router.get('/permissions/me', verifyToken, asyncHandler(async (req, res) => {
+  const permissions = resolvePermissions(req.user);
+  res.json({ permissions, role: req.user.role });
+}));
+
+// Get permissions for a specific user
+router.get('/permissions/:userId', verifyToken, requireRole('superadmin', 'admin'), asyncHandler(async (req, res) => {
+  const userDoc = await db.collection('users').doc(req.params.userId).get();
+  if (!userDoc.exists) throw new NotFoundError('User');
+  const userData = { uid: userDoc.id, ...userDoc.data() };
+  const permissions = resolvePermissions(userData);
+  res.json({
+    userId: userDoc.id,
+    role: userData.role,
+    permissions,
+    isCustom: Array.isArray(userData.permissions) && userData.permissions.length > 0,
+  });
+}));
+
+// Update permissions for a specific user
+router.put('/permissions/:userId', verifyToken, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const { permissions } = req.body;
+  if (!Array.isArray(permissions)) {
+    throw new ValidationError('permissions must be an array');
+  }
+
+  // Validate all permission keys
+  const validKeys = getAllPermissionKeys();
+  const invalid = permissions.filter(p => !validKeys.includes(p));
+  if (invalid.length > 0) {
+    throw new ValidationError(`Invalid permissions: ${invalid.join(', ')}`);
+  }
+
+  const userDoc = await db.collection('users').doc(req.params.userId).get();
+  if (!userDoc.exists) throw new NotFoundError('User');
+
+  await db.collection('users').doc(req.params.userId).update({
+    permissions,
+    updatedAt: new Date().toISOString(),
+  });
+
+  await invalidateUserCache(req.params.userId);
+  await logAuth('permissions_updated', req.params.userId, { updatedBy: req.user.uid, permissionCount: permissions.length });
+
+  res.json({ success: true, message: 'Permissions updated', permissions });
+}));
+
+// Reset user permissions to role template defaults
+router.delete('/permissions/:userId', verifyToken, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const userDoc = await db.collection('users').doc(req.params.userId).get();
+  if (!userDoc.exists) throw new NotFoundError('User');
+
+  await db.collection('users').doc(req.params.userId).update({
+    permissions: [],
+    updatedAt: new Date().toISOString(),
+  });
+
+  await invalidateUserCache(req.params.userId);
+  await logAuth('permissions_reset', req.params.userId, { resetBy: req.user.uid });
+
+  const role = userDoc.data().role || 'client';
+  res.json({ success: true, message: 'Permissions reset to role defaults', permissions: ROLE_TEMPLATES[role] || [] });
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CUSTOM ROLES ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Get all custom roles
+router.get('/roles', verifyToken, requireRole('superadmin', 'admin'), asyncHandler(async (req, res) => {
+  const snapshot = await db.collection('custom_roles').orderBy('createdAt', 'desc').get();
+  const roles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  // Include built-in roles
+  const builtIn = Object.entries(ROLE_TEMPLATES).map(([name, permissions]) => ({
+    id: `builtin_${name}`,
+    name,
+    permissions,
+    builtIn: true,
+    description: `Default ${name} role`,
+  }));
+
+  res.json({ builtIn, custom: roles });
+}));
+
+// Create custom role
+router.post('/roles', verifyToken, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const { name, description, permissions } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length < 2) {
+    throw new ValidationError('Role name must be at least 2 characters');
+  }
+  if (!Array.isArray(permissions) || permissions.length === 0) {
+    throw new ValidationError('permissions must be a non-empty array');
+  }
+
+  const normalizedName = name.trim().toLowerCase().replace(/\s+/g, '_');
+
+  // Prevent collision with built-in roles
+  if (ROLE_TEMPLATES[normalizedName]) {
+    throw new ConflictError(`Cannot overwrite built-in role "${normalizedName}"`);
+  }
+
+  // Check duplicate
+  const existing = await db.collection('custom_roles').where('name', '==', normalizedName).get();
+  if (!existing.empty) {
+    throw new ConflictError(`Role "${normalizedName}" already exists`);
+  }
+
+  // Validate permissions
+  const validKeys = getAllPermissionKeys();
+  const invalid = permissions.filter(p => !validKeys.includes(p));
+  if (invalid.length > 0) {
+    throw new ValidationError(`Invalid permissions: ${invalid.join(', ')}`);
+  }
+
+  const role = {
+    name: normalizedName,
+    displayName: name.trim(),
+    description: description || '',
+    permissions,
+    createdBy: req.user.uid,
+    createdAt: new Date().toISOString(),
+  };
+
+  const docRef = await db.collection('custom_roles').add(role);
+  await logAuth('role_created', normalizedName, { createdBy: req.user.uid });
+
+  res.status(201).json({ id: docRef.id, ...role });
+}));
+
+// Update custom role
+router.put('/roles/:id', verifyToken, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const { name, description, permissions } = req.body;
+
+  const roleDoc = await db.collection('custom_roles').doc(req.params.id).get();
+  if (!roleDoc.exists) throw new NotFoundError('Custom role');
+
+  const update = { updatedAt: new Date().toISOString() };
+
+  if (name) {
+    const normalizedName = name.trim().toLowerCase().replace(/\s+/g, '_');
+    if (ROLE_TEMPLATES[normalizedName]) {
+      throw new ConflictError(`Cannot use built-in role name "${normalizedName}"`);
+    }
+    update.name = normalizedName;
+    update.displayName = name.trim();
+  }
+  if (description !== undefined) update.description = description;
+  if (Array.isArray(permissions)) {
+    const validKeys = getAllPermissionKeys();
+    const invalid = permissions.filter(p => !validKeys.includes(p));
+    if (invalid.length > 0) {
+      throw new ValidationError(`Invalid permissions: ${invalid.join(', ')}`);
+    }
+    update.permissions = permissions;
+  }
+
+  await db.collection('custom_roles').doc(req.params.id).update(update);
+  await logAuth('role_updated', req.params.id, { updatedBy: req.user.uid });
+
+  res.json({ success: true, message: 'Role updated' });
+}));
+
+// Delete custom role
+router.delete('/roles/:id', verifyToken, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const roleDoc = await db.collection('custom_roles').doc(req.params.id).get();
+  if (!roleDoc.exists) throw new NotFoundError('Custom role');
+
+  await db.collection('custom_roles').doc(req.params.id).delete();
+  await logAuth('role_deleted', req.params.id, { deletedBy: req.user.uid });
+
+  res.json({ success: true, message: 'Role deleted' });
+}));
+
+// Apply a custom role's permissions to a user
+router.post('/roles/:id/apply/:userId', verifyToken, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const roleDoc = await db.collection('custom_roles').doc(req.params.id).get();
+  if (!roleDoc.exists) throw new NotFoundError('Custom role');
+
+  const userDoc = await db.collection('users').doc(req.params.userId).get();
+  if (!userDoc.exists) throw new NotFoundError('User');
+
+  const roleData = roleDoc.data();
+  await db.collection('users').doc(req.params.userId).update({
+    permissions: roleData.permissions,
+    customRole: roleData.name,
+    updatedAt: new Date().toISOString(),
+  });
+
+  await invalidateUserCache(req.params.userId);
+  await logAuth('role_applied', req.params.userId, { role: roleData.name, appliedBy: req.user.uid });
+
+  res.json({ success: true, message: `Role "${roleData.displayName}" applied`, permissions: roleData.permissions });
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════

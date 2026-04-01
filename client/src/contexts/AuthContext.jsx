@@ -94,7 +94,7 @@ export function AuthProvider({ children }) {
 
           if (res.ok) {
             const data = await res.json();
-            setUser(data);
+            setUser(data); // now includes permissions array
             lastActivityRef.current = Date.now();
           } else {
             const err = await res.json().catch(() => ({ error: 'Unknown error' }));

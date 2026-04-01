@@ -1,5 +1,80 @@
 import { auth, db } from '../firebase-admin.js';
 
+// ─── Permissions System ──────────────────────────────────────────────────────
+
+export const ALL_PERMISSIONS = {
+  billing:       ['view', 'create', 'edit', 'delete', 'send'],
+  documents:     ['view', 'create', 'edit', 'delete', 'share'],
+  mail:          ['view', 'compose', 'send', 'delete'],
+  employees:     ['view', 'create', 'edit', 'delete'],
+  projects:      ['view', 'create', 'edit', 'delete'],
+  accounting:    ['view', 'create', 'edit'],
+  ai:            ['access', 'send_email', 'create_invoice'],
+  users:         ['view', 'create', 'edit', 'delete'],
+  settings:      ['view', 'edit'],
+  client_portal: ['manage'],
+  payments:      ['view', 'create', 'edit'],
+  expenses:      ['view', 'create', 'edit', 'delete'],
+  gst:           ['view', 'create', 'edit'],
+  attendance:    ['view', 'create', 'edit'],
+  payroll:       ['view', 'create', 'edit'],
+  loans:         ['view', 'create', 'edit', 'delete'],
+  templates:     ['view', 'create', 'edit', 'delete'],
+  auth_logs:     ['view'],
+};
+
+// Flatten all permissions into a list like ['billing.view', 'billing.create', ...]
+export function getAllPermissionKeys() {
+  const keys = [];
+  for (const [module, actions] of Object.entries(ALL_PERMISSIONS)) {
+    for (const action of actions) {
+      keys.push(`${module}.${action}`);
+    }
+  }
+  return keys;
+}
+
+// Default permission sets for built-in roles
+export const ROLE_TEMPLATES = {
+  superadmin: getAllPermissionKeys(), // all permissions
+  admin: (() => {
+    const all = getAllPermissionKeys();
+    // Admin gets everything except user deletion and auth_logs
+    return all.filter(p => p !== 'users.delete' && p !== 'auth_logs.view');
+  })(),
+  employee: [
+    'billing.view', 'billing.create', 'billing.edit', 'billing.send',
+    'documents.view', 'documents.create', 'documents.edit', 'documents.share',
+    'mail.view', 'mail.compose', 'mail.send',
+    'employees.view',
+    'projects.view', 'projects.create', 'projects.edit',
+    'accounting.view',
+    'ai.access',
+    'settings.view',
+    'payments.view',
+    'expenses.view', 'expenses.create', 'expenses.edit',
+    'gst.view',
+    'attendance.view', 'attendance.create',
+    'payroll.view',
+    'loans.view',
+    'templates.view',
+  ],
+  client: [
+    'client_portal.manage',
+    'billing.view',
+    'documents.view',
+    'projects.view',
+  ],
+};
+
+// Resolve permissions for a user: custom permissions override, else role template
+export function resolvePermissions(user) {
+  if (user.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
+    return user.permissions;
+  }
+  return ROLE_TEMPLATES[user.role] || ROLE_TEMPLATES.client;
+}
+
 // ─── User Cache ───────────────────────────────────────────────────────────────
 // In-memory cache to reduce Firestore reads on every request.
 // TTL: 5 minutes. Invalidate on user update.
@@ -158,6 +233,38 @@ export function requireRole(...roles) {
       return res.status(403).json({
         error: `Access denied. Required role: ${roles.join(' or ')}`,
         code: 'INSUFFICIENT_ROLE',
+      });
+    }
+    next();
+  };
+}
+
+// ─── Permission Authorization ────────────────────────────────────────────────
+// Checks if the user has ANY of the specified permissions.
+// Usage: requirePermission('billing.view', 'billing.edit')
+
+export function requirePermission(...permissions) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated', code: 'NOT_AUTHENTICATED' });
+    }
+
+    const userPerms = resolvePermissions(req.user);
+    const hasPermission = permissions.some(p => userPerms.includes(p));
+
+    if (!hasPermission) {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        type: 'PERMISSION_DENIED',
+        userId: req.user.uid,
+        userRole: req.user.role,
+        requiredPermissions: permissions,
+        path: req.originalUrl,
+        timestamp: new Date().toISOString(),
+      }));
+      return res.status(403).json({
+        error: `Access denied. Required permission: ${permissions.join(' or ')}`,
+        code: 'INSUFFICIENT_PERMISSION',
       });
     }
     next();

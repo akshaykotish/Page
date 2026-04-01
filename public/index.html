@@ -14,6 +14,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
@@ -87,26 +88,16 @@
                         </div>
                     </div>
                 </div>
-                <!-- Decorative Notebook -->
-                <div class="hero-notebook">
-                    <div class="notebook-page">
-                        <div class="notebook-line"></div>
-                        <div class="notebook-line"></div>
-                        <div class="notebook-code">
-                            <span class="code-keyword">const</span> mission = {<br>
-                            &nbsp;&nbsp;goal: <span class="code-string">"innovate"</span>,<br>
-                            &nbsp;&nbsp;impact: <span class="code-string">"global"</span>,<br>
-                            &nbsp;&nbsp;status: <span class="code-string">"executing"</span><br>
-                            };
-                        </div>
-                        <div class="notebook-line"></div>
-                        <div class="notebook-line"></div>
-                    </div>
-                    <div class="notebook-spine"></div>
+                <!-- 3D Hero Scene -->
+                <div class="hero-3d-container" id="hero3d">
+                    <canvas id="heroCanvas"></canvas>
                 </div>
             </div>
         </div>
     </section>
+
+    <!-- Floating 3D Particles Background -->
+    <canvas id="bgParticles" class="bg-particles-canvas"></canvas>
 
     <!-- About Section -->
     <section class="section about" id="about">
@@ -429,6 +420,30 @@
         </div>
     </section>
 
+    <!-- 3D Floating Tech Showcase -->
+    <section class="section tech-3d-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-tag">
+                    <span class="tag-dot"></span>
+                    <span>Interactive</span>
+                </div>
+                <h2 class="section-title">Technology in Motion</h2>
+                <p class="section-desc">Move your mouse to interact with our tech universe. Each shape represents a domain we innovate in.</p>
+            </div>
+            <div class="tech-3d-wrapper" id="tech3dWrapper">
+                <canvas id="tech3dCanvas"></canvas>
+                <div class="tech-3d-labels">
+                    <div class="t3d-label" style="--x: 20%; --y: 30%;">AI/ML</div>
+                    <div class="t3d-label" style="--x: 75%; --y: 25%;">PropTech</div>
+                    <div class="t3d-label" style="--x: 50%; --y: 70%;">LegalTech</div>
+                    <div class="t3d-label" style="--x: 15%; --y: 75%;">PetTech</div>
+                    <div class="t3d-label" style="--x: 85%; --y: 65%;">Security</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Achievements Section -->
     <section class="section achievements" id="achievements">
         <div class="container">
@@ -624,5 +639,6 @@
     </footer>
 
     <script src="script.js"></script>
+    <script src="three-scenes.js"></script>
 </body>
 </html>

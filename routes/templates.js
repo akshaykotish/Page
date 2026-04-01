@@ -8,6 +8,9 @@ const router = Router();
 router.use(verifyToken);
 router.use(requireRole('superadmin', 'admin'));
 
+const VALID_TYPES = ['letterhead', 'bill_header', 'bill_footer', 'letterhead_footer'];
+const VALID_CATEGORIES = ['business', 'legal', 'finance', 'hr', 'marketing', 'general'];
+
 // ─── Helper: Pagination defaults ──────────────────────────────────────────────
 
 function getPaginationParams(req) {
@@ -19,14 +22,13 @@ function getPaginationParams(req) {
 
 // ─── List templates with pagination ───────────────────────────────────────────
 
-router.get('/', validateQuery({ page: 'optionalString', limit: 'optionalString', type: 'optionalString' }), asyncHandler(async (req, res) => {
+router.get('/', validateQuery({ page: 'optionalString', limit: 'optionalString', type: 'optionalString', category: 'optionalString' }), asyncHandler(async (req, res) => {
   const { skip, limit, page } = getPaginationParams(req);
-  const { type } = req.query;
+  const { type, category } = req.query;
 
   let query = db.collection('templates');
-  if (type) {
-    query = query.where('type', '==', type.toLowerCase());
-  }
+  if (type) query = query.where('type', '==', type.toLowerCase());
+  if (category) query = query.where('category', '==', category);
 
   const snapshot = await query.orderBy('updatedAt', 'desc').get();
   const docs = snapshot.docs;
@@ -34,12 +36,9 @@ router.get('/', validateQuery({ page: 'optionalString', limit: 'optionalString',
   const paginated = docs.slice(skip, skip + limit);
 
   console.info(JSON.stringify({
-    level: 'info',
-    action: 'list_templates',
-    userId: req.user.uid,
-    filters: { type: !!type },
-    pagination: { page, limit, total },
-    timestamp: new Date().toISOString(),
+    level: 'info', action: 'list_templates', userId: req.user.uid,
+    filters: { type: !!type, category: !!category },
+    pagination: { page, limit, total }, timestamp: new Date().toISOString(),
   }));
 
   res.json({
@@ -52,26 +51,22 @@ router.get('/', validateQuery({ page: 'optionalString', limit: 'optionalString',
 
 router.get('/:id', asyncHandler(async (req, res) => {
   const doc = await db.collection('templates').doc(req.params.id).get();
-  if (!doc.exists) {
-    throw new NotFoundError('Template');
-  }
+  if (!doc.exists) throw new NotFoundError('Template');
   res.json({ id: doc.id, ...doc.data() });
 }));
 
 // ─── Create template ────────────────────────────────────────────────────────
 
 router.post('/', validate('createTemplate'), asyncHandler(async (req, res) => {
-  const { name, type, canvasJSON, width, height, thumbnail } = req.body;
+  const { name, type, canvasJSON, width, height, thumbnail, category, variables } = req.body;
 
-  // Validate required fields
   if (!name || name.trim().length === 0) {
     throw new ValidationError('Template name is required');
   }
 
   const templateType = type && typeof type === 'string' ? type.toLowerCase() : 'letterhead';
-  const validTypes = ['letterhead', 'bill_header'];
-  if (!validTypes.includes(templateType)) {
-    throw new ValidationError('Invalid template type', [`Type must be one of: ${validTypes.join(', ')}`]);
+  if (!VALID_TYPES.includes(templateType)) {
+    throw new ValidationError('Invalid template type', [`Type must be one of: ${VALID_TYPES.join(', ')}`]);
   }
 
   if (!canvasJSON || typeof canvasJSON !== 'object') {
@@ -81,26 +76,23 @@ router.post('/', validate('createTemplate'), asyncHandler(async (req, res) => {
   const template = {
     name: name.trim(),
     type: templateType,
+    category: category && VALID_CATEGORIES.includes(category) ? category : 'general',
     canvasJSON,
     width: width && typeof width === 'number' ? width : 794,
     height: height && typeof height === 'number' ? height : 200,
     thumbnail: thumbnail || '',
+    variables: Array.isArray(variables) ? variables : [],
     isDefault: false,
     createdBy: req.user.uid,
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   };
 
   const docRef = await db.collection('templates').add(template);
 
   console.info(JSON.stringify({
-    level: 'info',
-    action: 'create_template',
-    templateId: docRef.id,
-    name: name,
-    type: templateType,
-    userId: req.user.uid,
-    timestamp: new Date().toISOString(),
+    level: 'info', action: 'create_template', templateId: docRef.id,
+    name, type: templateType, userId: req.user.uid, timestamp: new Date().toISOString(),
   }));
 
   res.status(201).json({ id: docRef.id, ...template });
@@ -109,13 +101,10 @@ router.post('/', validate('createTemplate'), asyncHandler(async (req, res) => {
 // ─── Update template ────────────────────────────────────────────────────────
 
 router.put('/:id', asyncHandler(async (req, res) => {
-  const { name, canvasJSON, width, height, thumbnail, isDefault } = req.body;
+  const { name, canvasJSON, width, height, thumbnail, isDefault, category, variables } = req.body;
 
-  // Verify template exists
   const doc = await db.collection('templates').doc(req.params.id).get();
-  if (!doc.exists) {
-    throw new NotFoundError('Template');
-  }
+  if (!doc.exists) throw new NotFoundError('Template');
 
   const update = { updatedAt: new Date().toISOString() };
   if (name !== undefined) update.name = name.trim();
@@ -123,6 +112,8 @@ router.put('/:id', asyncHandler(async (req, res) => {
   if (width !== undefined) update.width = width;
   if (height !== undefined) update.height = height;
   if (thumbnail !== undefined) update.thumbnail = thumbnail;
+  if (category !== undefined && VALID_CATEGORIES.includes(category)) update.category = category;
+  if (variables !== undefined && Array.isArray(variables)) update.variables = variables;
 
   // If setting as default, unset other defaults of same type
   if (isDefault === true) {
@@ -144,12 +135,8 @@ router.put('/:id', asyncHandler(async (req, res) => {
   await db.collection('templates').doc(req.params.id).update(update);
 
   console.info(JSON.stringify({
-    level: 'info',
-    action: 'update_template',
-    templateId: req.params.id,
-    isDefault: isDefault === true,
-    userId: req.user.uid,
-    timestamp: new Date().toISOString(),
+    level: 'info', action: 'update_template', templateId: req.params.id,
+    isDefault: isDefault === true, userId: req.user.uid, timestamp: new Date().toISOString(),
   }));
 
   res.json({ success: true });
@@ -159,18 +146,13 @@ router.put('/:id', asyncHandler(async (req, res) => {
 
 router.delete('/:id', asyncHandler(async (req, res) => {
   const doc = await db.collection('templates').doc(req.params.id).get();
-  if (!doc.exists) {
-    throw new NotFoundError('Template');
-  }
+  if (!doc.exists) throw new NotFoundError('Template');
 
   await db.collection('templates').doc(req.params.id).delete();
 
   console.info(JSON.stringify({
-    level: 'info',
-    action: 'delete_template',
-    templateId: req.params.id,
-    userId: req.user.uid,
-    timestamp: new Date().toISOString(),
+    level: 'info', action: 'delete_template', templateId: req.params.id,
+    userId: req.user.uid, timestamp: new Date().toISOString(),
   }));
 
   res.status(204).send();
@@ -180,10 +162,9 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 
 router.get('/default/:type', asyncHandler(async (req, res) => {
   const { type } = req.params;
-  const validTypes = ['letterhead', 'bill_header'];
 
-  if (!validTypes.includes(type)) {
-    throw new ValidationError('Invalid template type', [`Type must be one of: ${validTypes.join(', ')}`]);
+  if (!VALID_TYPES.includes(type)) {
+    throw new ValidationError('Invalid template type', [`Type must be one of: ${VALID_TYPES.join(', ')}`]);
   }
 
   const snapshot = await db.collection('templates')
@@ -194,28 +175,83 @@ router.get('/default/:type', asyncHandler(async (req, res) => {
 
   if (snapshot.empty) {
     console.info(JSON.stringify({
-      level: 'info',
-      action: 'get_default_template',
-      type,
-      found: false,
-      userId: req.user.uid,
-      timestamp: new Date().toISOString(),
+      level: 'info', action: 'get_default_template', type, found: false,
+      userId: req.user.uid, timestamp: new Date().toISOString(),
     }));
     return res.json(null);
   }
 
   const defaultTemplate = snapshot.docs[0];
   console.info(JSON.stringify({
-    level: 'info',
-    action: 'get_default_template',
-    type,
-    found: true,
-    templateId: defaultTemplate.id,
-    userId: req.user.uid,
-    timestamp: new Date().toISOString(),
+    level: 'info', action: 'get_default_template', type, found: true,
+    templateId: defaultTemplate.id, userId: req.user.uid, timestamp: new Date().toISOString(),
   }));
 
   res.json({ id: defaultTemplate.id, ...defaultTemplate.data() });
+}));
+
+// ─── Export template ────────────────────────────────────────────────────────
+
+router.get('/:id/export', asyncHandler(async (req, res) => {
+  const doc = await db.collection('templates').doc(req.params.id).get();
+  if (!doc.exists) throw new NotFoundError('Template');
+
+  const data = doc.data();
+  const exportData = {
+    _exportVersion: 1,
+    _exportedAt: new Date().toISOString(),
+    name: data.name,
+    type: data.type,
+    category: data.category || 'general',
+    canvasJSON: data.canvasJSON,
+    width: data.width,
+    height: data.height,
+    variables: data.variables || [],
+  };
+
+  res.json(exportData);
+}));
+
+// ─── Import template ────────────────────────────────────────────────────────
+
+router.post('/import', asyncHandler(async (req, res) => {
+  const { name, type, canvasJSON, width, height, category, variables } = req.body;
+
+  if (!name || !canvasJSON) {
+    throw new ValidationError('Template name and canvasJSON are required for import');
+  }
+
+  const templateType = type && VALID_TYPES.includes(type) ? type : 'letterhead';
+
+  const template = {
+    name: name.trim(),
+    type: templateType,
+    category: category && VALID_CATEGORIES.includes(category) ? category : 'general',
+    canvasJSON: typeof canvasJSON === 'string' ? JSON.parse(canvasJSON) : canvasJSON,
+    width: width || 794,
+    height: height || 200,
+    thumbnail: '',
+    variables: Array.isArray(variables) ? variables : [],
+    isDefault: false,
+    createdBy: req.user.uid,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const docRef = await db.collection('templates').add(template);
+
+  console.info(JSON.stringify({
+    level: 'info', action: 'import_template', templateId: docRef.id,
+    name: template.name, userId: req.user.uid, timestamp: new Date().toISOString(),
+  }));
+
+  res.status(201).json({ id: docRef.id, ...template });
+}));
+
+// ─── Get all categories ─────────────────────────────────────────────────────
+
+router.get('/meta/categories', asyncHandler(async (req, res) => {
+  res.json(VALID_CATEGORIES);
 }));
 
 export default router;

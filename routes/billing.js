@@ -43,17 +43,18 @@ async function sendInvoiceEmail(invoice, reason = 'payment_received', attachment
   const subjectPrefix = isPaid ? 'Payment Received' : 'Invoice';
 
   const html = `
-<div style="font-family:'Inter',Arial,sans-serif;max-width:700px;margin:0 auto;color:#1a1a1a;">
+<div style="font-family:'Poppins','Inter',Arial,sans-serif;max-width:700px;margin:0 auto;color:#1a1a1a;">
   <!-- Header -->
-  <div style="background:#1e293b;color:#fff;padding:24px 30px;border-radius:10px 10px 0 0;">
+  <div style="background:#ffffff;padding:28px 30px 20px;border-bottom:3px solid #2e7d32;border-radius:10px 10px 0 0;">
     <table style="width:100%;border:none;border-collapse:collapse;"><tr>
       <td style="border:none;padding:0;vertical-align:top;">
-        <h1 style="margin:0;font-size:22px;font-weight:800;">${cn}</h1>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${ln}</div>
+        <h1 style="margin:0;font-size:22px;font-weight:800;color:#1a1a1a;letter-spacing:-0.5px;">${cn.toUpperCase()}</h1>
+        <div style="font-size:10px;color:#64748b;margin-top:2px;font-weight:400;">A Brand of ${ln}</div>
+        <div style="font-size:10px;color:#2e7d32;font-weight:600;margin-top:4px;">Chartered Accountants & Business Consultants</div>
       </td>
       <td style="border:none;padding:0;text-align:right;vertical-align:top;">
-        <div style="font-size:24px;font-weight:900;color:#c0e040;">${isPaid ? 'PAID' : 'INVOICE'}</div>
-        <div style="font-size:12px;color:#94a3b8;margin-top:2px;">${invoice.invoiceNumber || ''}</div>
+        <div style="font-size:24px;font-weight:800;color:${isPaid ? '#16a34a' : '#2e7d32'};">${isPaid ? 'PAID' : 'INVOICE'}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px;">${invoice.invoiceNumber || ''}</div>
       </td>
     </tr></table>
   </div>

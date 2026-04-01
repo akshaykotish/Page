@@ -5,18 +5,22 @@
 
 // ─── Sanitization helpers ─────────────────────────────────────────────────────
 
-function sanitizeString(val) {
+const HTML_SAFE_KEYS = new Set(['html', 'content', 'body', 'htmlContent', 'doc_header', 'doc_footer', 'inv_header', 'inv_footer', 'signature', 'template',
+  'canvasJson_doc_header', 'canvasJson_doc_footer', 'canvasJson_inv_header', 'canvasJson_inv_footer']);
+
+function sanitizeString(val, key) {
   if (typeof val !== 'string') return val;
+  if (key && HTML_SAFE_KEYS.has(key)) return val.trim();
   return val.trim().replace(/[<>]/g, '');
 }
 
 function sanitizeObject(obj) {
   if (!obj || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(sanitizeObject);
+  if (Array.isArray(obj)) return obj.map(item => sanitizeObject(item));
   const clean = {};
   for (const [key, val] of Object.entries(obj)) {
     if (typeof val === 'string') {
-      clean[key] = sanitizeString(val);
+      clean[key] = sanitizeString(val, key);
     } else if (typeof val === 'object' && val !== null) {
       clean[key] = sanitizeObject(val);
     } else {
@@ -47,7 +51,9 @@ const RULES = {
   paymentType: (v) => ['incoming', 'outgoing'].includes(v),
   paymentMethod: (v) => ['bank', 'cash', 'upi', 'cheque', 'razorpay', 'other'].includes(v),
   docType: (v) => ['letter', 'invoice', 'notice', 'agreement', 'general'].includes(v),
-  templateType: (v) => ['letterhead', 'bill_header'].includes(v),
+  docStatus: (v) => ['draft', 'review', 'approved', 'published', 'archived'].includes(v),
+  templateType: (v) => ['letterhead', 'bill_header', 'bill_footer', 'letterhead_footer'].includes(v),
+  templateCategory: (v) => ['business', 'legal', 'finance', 'hr', 'marketing', 'general'].includes(v),
   gstin: (v) => typeof v === 'string' && /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}[A-Z]{1}\d{1}$/.test(v.trim().toUpperCase()),
   pan: (v) => typeof v === 'string' && /^[A-Z]{5}\d{4}[A-Z]{1}$/.test(v.trim().toUpperCase()),
   ifsc: (v) => typeof v === 'string' && /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v.trim().toUpperCase()),
