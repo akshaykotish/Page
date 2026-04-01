@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Page Component Demo</title>
+  <link rel="stylesheet" href="/dist/page.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f3f4f6; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .demo-header { max-width: 100%; margin: 0 auto 20px; padding: 0 16px; display: flex; justify-content: space-between; align-items: center; }
+    .demo-header h1 { font-size: 22px; color: #1a1a1a; }
+    .demo-toggle { padding: 8px 20px; border: 2px solid #2563eb; background: #fff; color: #2563eb; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .demo-toggle.active { background: #2563eb; color: #fff; }
+    #root { min-height: 80vh; }
+  </style>
+</head>
+<body>
+  <div class="demo-header">
+    <h1>Page Component Demo</h1>
+    <button class="demo-toggle" id="toggleBtn" onclick="toggleEdit()">Edit Mode: OFF</button>
+  </div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useCallback, useLayoutEffect, useRef, useMemo } = React;
+
+    // ===== Block Components =====
+    function HeadingBlock({ block, edit, onChange }) {
+      const Tag = `h${block.level || 1}`;
+      if (!edit) return <Tag className="page-heading">{block.content}</Tag>;
+      return (
+        <div className="page-heading-edit">
+          <select className="page-heading-level-select" value={block.level || 1} onChange={(e) => onChange({ level: parseInt(e.target.value, 10) })}>
+            <option value={1}>H1</option><option value={2}>H2</option><option value={3}>H3</option><option value={4}>H4</option>
+          </select>
+          <Tag className="page-heading page-editable" contentEditable suppressContentEditableWarning onBlur={(e) => onChange({ content: e.target.innerText })}>{block.content}</Tag>
+        </div>
+      );
+    }
+    function ParagraphBlock({ block, edit, onChange }) {
+      if (!edit) return <p className="page-paragraph">{block.content}</p>;
+      return <p className="page-paragraph page-editable" contentEditable suppressContentEditableWarning onBlur={(e) => onChange({ content: e.target.innerText })} data-placeholder="Type something...">{block.content}</p>;
+    }
+    function ImageBlock({ block, edit, onChange }) {
+      if (!edit) return <figure className="page-image">{block.src ? <img src={block.src} alt={block.alt||""}/> : <div className="page-image-placeholder">No image</div>}{block.caption && <figcaption>{block.caption}</figcaption>}</figure>;
+      return <div className="page-image-edit"><input className="page-input" placeholder="Image URL" value={block.src||""} onChange={(e)=>onChange({src:e.target.value})}/><input className="page-input" placeholder="Alt text" value={block.alt||""} onChange={(e)=>onChange({alt:e.target.value})}/><input className="page-input" placeholder="Caption" value={block.caption||""} onChange={(e)=>onChange({caption:e.target.value})}/>{block.src&&<figure className="page-image"><img src={block.src} alt={block.alt||""}/></figure>}</div>;
+    }
+    function ListBlock({ block, edit, onChange }) {
+      const items = block.items||[""]; const Tag = block.ordered?"ol":"ul";
+      if (!edit) return <Tag className="page-list">{items.map((item,i)=><li key={i}>{item}</li>)}</Tag>;
+      return <div className="page-list-edit"><label className="page-list-toggle"><input type="checkbox" checked={block.ordered||false} onChange={(e)=>onChange({ordered:e.target.checked})}/> Ordered</label>{items.map((item,i)=><div key={i} className="page-list-item-edit"><span className="page-list-bullet">{block.ordered?`${i+1}.`:"•"}</span><input className="page-input page-list-input" value={item} onChange={(e)=>{const n=[...items];n[i]=e.target.value;onChange({items:n})}}/></div>)}<button className="page-btn page-btn-small" onClick={()=>onChange({items:[...items,""]})}>+ Add item</button></div>;
+    }
+    function CodeBlock({ block, edit, onChange }) {
+      if (!edit) return <pre className="page-code">{block.language&&<div className="page-code-lang">{block.language}</div>}<code>{block.content}</code></pre>;
+      return <div className="page-code-edit"><input className="page-input" placeholder="Language" value={block.language||""} onChange={(e)=>onChange({language:e.target.value})}/><textarea className="page-textarea page-code-textarea" value={block.content||""} onChange={(e)=>onChange({content:e.target.value})} rows={6} spellCheck={false}/></div>;
+    }
+    function QuoteBlock({ block, edit, onChange }) {
+      if (!edit) return <blockquote className="page-quote"><p>{block.content}</p>{block.author&&<cite>— {block.author}</cite>}</blockquote>;
+      return <div className="page-quote-edit"><textarea className="page-textarea" value={block.content||""} onChange={(e)=>onChange({content:e.target.value})} rows={3}/><input className="page-input" placeholder="Author" value={block.author||""} onChange={(e)=>onChange({author:e.target.value})}/></div>;
+    }
+    function DividerBlock() { return <hr className="page-divider"/>; }
+    function TableBlock({ block, edit, onChange }) {
+      const headers=block.headers||["Col 1","Col 2"]; const rows=block.rows||[["",""]];
+      if (!edit) return <div className="page-table-wrapper"><table className="page-table"><thead><tr>{headers.map((h,i)=><th key={i}>{h}</th>)}</tr></thead><tbody>{rows.map((row,ri)=><tr key={ri}>{row.map((cell,ci)=><td key={ci}>{cell}</td>)}</tr>)}</tbody></table></div>;
+      return <div className="page-table-edit"><div className="page-table-wrapper"><table className="page-table"><thead><tr>{headers.map((h,i)=><th key={i}><input className="page-table-input" value={h} onChange={(e)=>{const n=[...headers];n[i]=e.target.value;onChange({headers:n})}}/></th>)}</tr></thead><tbody>{rows.map((row,ri)=><tr key={ri}>{row.map((cell,ci)=><td key={ci}><input className="page-table-input" value={cell} onChange={(e)=>{const n=rows.map((r,j)=>j===ri?r.map((c,k)=>k===ci?e.target.value:c):r);onChange({rows:n})}}/></td>)}</tr>)}</tbody></table></div><div className="page-table-controls"><button className="page-btn page-btn-small" onClick={()=>onChange({rows:[...rows,headers.map(()=>"")]})}>+ Row</button><button className="page-btn page-btn-small" onClick={()=>onChange({headers:[...headers,`Col ${headers.length+1}`],rows:rows.map(r=>[...r,""])})}>+ Column</button></div></div>;
+    }
+
+    // ===== Block Renderer =====
+    const BLOCK_TYPES = [
+      {type:"paragraph",label:"Paragraph"},{type:"heading",label:"Heading"},{type:"image",label:"Image"},{type:"list",label:"List"},
+      {type:"code",label:"Code"},{type:"quote",label:"Quote"},{type:"divider",label:"Divider"},{type:"table",label:"Table"},
+    ];
+    const BLOCK_MAP = {heading:HeadingBlock,paragraph:ParagraphBlock,image:ImageBlock,list:ListBlock,code:CodeBlock,quote:QuoteBlock,divider:DividerBlock,table:TableBlock};
+
+    function BlockRenderer({ block, edit, onChange, onAddBlock, onDelete, onMoveUp, onMoveDown, isFirst, isLast }) {
+      const [showTypeMenu, setShowTypeMenu] = useState(false);
+      const Component = BLOCK_MAP[block.type] || ParagraphBlock;
+      const handleTypeChange = (newType) => {
+        const defaults = {paragraph:{content:block.content||""},heading:{content:block.content||"",level:1},image:{src:"",alt:"",caption:""},list:{items:[""],ordered:false},code:{content:block.content||"",language:""},quote:{content:block.content||"",author:""},divider:{},table:{headers:["Column 1","Column 2"],rows:[["",""]]}};
+        onChange({type:newType,...defaults[newType]}); setShowTypeMenu(false);
+      };
+      return (
+        <div className="page-block">
+          {edit && <div className="page-block-toolbar">
+            <div className="page-block-toolbar-left">
+              <button className="page-block-toolbar-btn" onClick={()=>setShowTypeMenu(!showTypeMenu)}>&#9776;</button>
+              {showTypeMenu && <div className="page-block-type-menu">{BLOCK_TYPES.map(bt=><button key={bt.type} className={`page-block-type-option ${bt.type===block.type?"page-block-type-option-active":""}`} onClick={()=>handleTypeChange(bt.type)}>{bt.label}</button>)}</div>}
+            </div>
+            <div className="page-block-toolbar-right">
+              <button className="page-block-toolbar-btn" onClick={onMoveUp} disabled={isFirst}>&#8593;</button>
+              <button className="page-block-toolbar-btn" onClick={onMoveDown} disabled={isLast}>&#8595;</button>
+              <button className="page-block-toolbar-btn" onClick={onAddBlock}>+</button>
+              <button className="page-block-toolbar-btn page-block-toolbar-btn-danger" onClick={onDelete}>&times;</button>
+            </div>
+          </div>}
+          <div className="page-block-content"><Component block={block} edit={edit} onChange={onChange}/></div>
+        </div>
+      );
+    }
+
+    // ===== Page Sizes =====
+    const PAGE_SIZES = {
+      A4:      { width: 794,  height: 1123, label: "A4 (210 × 297 mm)" },
+      A3:      { width: 1123, height: 1587, label: "A3 (297 × 420 mm)" },
+      Letter:  { width: 816,  height: 1056, label: "US Letter (8.5 × 11 in)" },
+      Legal:   { width: 816,  height: 1344, label: "US Legal (8.5 × 14 in)" },
+      Tabloid: { width: 1056, height: 1632, label: "Tabloid (11 × 17 in)" },
+      A5:      { width: 559,  height: 794,  label: "A5 (148 × 210 mm)" },
+    };
+    const DEFAULT_PADDING = { top: 60, bottom: 60, left: 48, right: 48 };
+    const PAGE_HEADER_HEIGHT = 48;
+
+    // ===== Page Component with Auto-Pagination =====
+    function Page({ data, edit = false, onChange, className = "", layout = "grid", pageSize: initialPageSize = "A4", padding: paddingProp }) {
+      const [allBlocks, setAllBlocks] = useState(() => {
+        if (!data?.pages) return [];
+        return data.pages.flatMap(p => p.blocks || []);
+      });
+      const [pageSize, setPageSize] = useState(initialPageSize);
+      const [blockHeights, setBlockHeights] = useState(null);
+      const measureRef = useRef(null);
+      const prevHeightsKey = useRef(null);
+
+      const pad = { ...DEFAULT_PADDING, ...paddingProp };
+      const size = PAGE_SIZES[pageSize] || PAGE_SIZES.A4;
+      const contentMaxHeight = size.height - pad.top - pad.bottom - PAGE_HEADER_HEIGHT;
+      const contentWidth = size.width - pad.left - pad.right;
+
+      // Measure block heights in hidden container
+      useLayoutEffect(() => {
+        if (!measureRef.current) return;
+        const els = Array.from(measureRef.current.children);
+        const heights = els.map(el => el.getBoundingClientRect().height);
+        const key = heights.join(",");
+        if (prevHeightsKey.current !== key) {
+          prevHeightsKey.current = key;
+          setBlockHeights(heights);
+        }
+      });
+
+      // Auto-paginate: distribute blocks into visual pages
+      const visualPages = useMemo(() => {
+        if (!blockHeights || blockHeights.length !== allBlocks.length) {
+          return [{ blocks: [...allBlocks], startIndex: 0 }];
+        }
+        const pages = [];
+        let cur = [], h = 0, start = 0;
+        for (let i = 0; i < allBlocks.length; i++) {
+          const bh = blockHeights[i];
+          if (h + bh > contentMaxHeight && cur.length > 0) {
+            pages.push({ blocks: cur, startIndex: start });
+            start = i; cur = [allBlocks[i]]; h = bh;
+          } else {
+            cur.push(allBlocks[i]); h += bh;
+          }
+        }
+        if (cur.length > 0) pages.push({ blocks: cur, startIndex: start });
+        return pages.length > 0 ? pages : [{ blocks: [], startIndex: 0 }];
+      }, [allBlocks, blockHeights, contentMaxHeight]);
+
+      // Edit handlers on flat block array
+      const emitChange = useCallback((blocks) => { if (onChange) onChange({ blocks }); }, [onChange]);
+
+      const handleBlockChange = useCallback((gi, u) => {
+        setAllBlocks(prev => { const next = prev.map((b,i) => i===gi ? {...b,...u} : b); emitChange(next); return next; });
+      }, [emitChange]);
+
+      const handleAddBlock = useCallback((afterGi) => {
+        setAllBlocks(prev => { const next = [...prev]; next.splice(afterGi+1, 0, { id:`block-${Date.now()}`, type:"paragraph", content:"" }); emitChange(next); return next; });
+      }, [emitChange]);
+
+      const handleDeleteBlock = useCallback((gi) => {
+        setAllBlocks(prev => { const next = prev.filter((_,i) => i!==gi); emitChange(next); return next; });
+      }, [emitChange]);
+
+      const handleMoveBlock = useCallback((gi, dir) => {
+        setAllBlocks(prev => { const t=gi+dir; if(t<0||t>=prev.length) return prev; const next=[...prev]; [next[gi],next[t]]=[next[t],next[gi]]; emitChange(next); return next; });
+      }, [emitChange]);
+
+      const noop = () => {};
+
+      if (layout === "grid") {
+        const gridStyle = { "--page-width": `${size.width}px`, "--page-height": `${size.height}px` };
+        return (
+          <div className={`page-container page-container-grid ${className}`}>
+            <div className="page-size-bar">
+              <label>Page Size:</label>
+              <select className="page-size-select" value={pageSize} onChange={(e) => setPageSize(e.target.value)}>
+                {Object.entries(PAGE_SIZES).map(([key,val]) => <option key={key} value={key}>{val.label}</option>)}
+              </select>
+              <span className="page-size-hint">{size.width} x {size.height} px</span>
+            </div>
+
+            {/* Hidden measuring container */}
+            <div ref={measureRef} aria-hidden="true" className="page-measure-container" style={{ width: `${contentWidth}px` }}>
+              {allBlocks.map((block) => (
+                <BlockRenderer key={block.id} block={block} edit={false} onChange={noop} onAddBlock={noop} onDelete={noop} onMoveUp={noop} onMoveDown={noop} isFirst isLast />
+              ))}
+            </div>
+
+            {/* Rendered pages */}
+            <div className="page-grid" style={gridStyle}>
+              {visualPages.map((vp, pageIndex) => (
+                <div className="page-paper" key={pageIndex} style={{ padding: `${pad.top}px ${pad.right}px ${pad.bottom}px ${pad.left}px` }}>
+                  <div className="page-paper-header">
+                    <span className="page-paper-label">Page {pageIndex + 1}</span>
+                  </div>
+                  <div className="page-content-area">
+                    {vp.blocks.map((block, bi) => {
+                      const gi = vp.startIndex + bi;
+                      return <BlockRenderer key={block.id} block={block} edit={edit}
+                        onChange={(u) => handleBlockChange(gi, u)}
+                        onAddBlock={() => handleAddBlock(gi)}
+                        onDelete={() => handleDeleteBlock(gi)}
+                        onMoveUp={() => handleMoveBlock(gi, -1)}
+                        onMoveDown={() => handleMoveBlock(gi, 1)}
+                        isFirst={gi===0} isLast={gi===allBlocks.length-1} />;
+                    })}
+                    {edit && vp.blocks.length === 0 && (
+                      <div className="page-block-empty" onClick={() => handleAddBlock(vp.startIndex > 0 ? vp.startIndex - 1 : -1)}>Click to add a block</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="page-footer">{visualPages.length} page{visualPages.length !== 1 ? "s" : ""}</div>
+          </div>
+        );
+      }
+
+      return <div className={`page-container ${className}`}><div className="page-paper">{allBlocks.map((block,bi) =>
+        <BlockRenderer key={block.id} block={block} edit={edit} onChange={(u)=>handleBlockChange(bi,u)} onAddBlock={()=>handleAddBlock(bi)} onDelete={()=>handleDeleteBlock(bi)} onMoveUp={()=>handleMoveBlock(bi,-1)} onMoveDown={()=>handleMoveBlock(bi,1)} isFirst={bi===0} isLast={bi===allBlocks.length-1}/>
+      )}</div></div>;
+    }
+
+    // ===== 4,000-WORD DUMMY DATA =====
+    const dummyData = {
+      pages: [{
+        id: "page-1",
+        blocks: [
+          { id: "b1", type: "heading", content: "Chapter 1: The Architecture of Modern Software Systems", level: 1 },
+          { id: "b2", type: "paragraph", content: "The landscape of software engineering has undergone a remarkable transformation over the past two decades. What once began as monolithic applications running on single servers has evolved into distributed systems spanning continents, processing millions of requests per second, and serving billions of users simultaneously. This evolution has not been merely technological — it has fundamentally changed how we think about building, deploying, and maintaining software at scale." },
+          { id: "b3", type: "paragraph", content: "At the heart of this transformation lies the concept of modularity. Software architects discovered early on that breaking complex systems into smaller, manageable components led to better maintainability, testability, and scalability. The Unix philosophy of doing one thing well became the guiding principle for an entire generation of developers who built the tools and frameworks we rely on today. From microservices to serverless functions, the trend toward smaller, more focused units of computation continues to accelerate." },
+          { id: "b4", type: "paragraph", content: "Consider the challenges faced by early internet companies. When Amazon first launched its online bookstore, the entire application was a single monolithic codebase. Every feature, from the product catalog to the shopping cart to the recommendation engine, was tightly coupled within one massive application. Deploying a change to any part of the system required redeploying the entire application, a process that was slow, risky, and fraught with potential for cascading failures. As the company grew and the system became more complex, this approach became increasingly untenable." },
+          { id: "b5", type: "quote", content: "The best architectures, requirements, and designs emerge from self-organizing teams. At regular intervals, the team reflects on how to become more effective, then tunes and adjusts its behavior accordingly.", author: "Agile Manifesto Principles" },
+          { id: "b6", type: "paragraph", content: "The solution that emerged was service-oriented architecture, which later evolved into what we now call microservices. Instead of one monolithic application, the system was decomposed into dozens, then hundreds, then thousands of independent services, each responsible for a specific business capability. The product catalog became its own service. The shopping cart became another. The recommendation engine, the payment processor, the inventory manager — each became an autonomous unit that could be developed, deployed, and scaled independently." },
+          { id: "b7", type: "paragraph", content: "This architectural shift brought tremendous benefits but also introduced new challenges. When your application is a single process running on a single machine, communication between components is trivial — it is just function calls within the same memory space. But when those components become separate services running on different machines, potentially in different data centers, communication becomes a distributed systems problem. Network latency, partial failures, message ordering, and data consistency all become concerns that must be explicitly addressed in the application design." },
+          { id: "b8", type: "heading", content: "The Role of APIs in System Design", level: 2 },
+          { id: "b9", type: "paragraph", content: "Application Programming Interfaces have become the lingua franca of modern software systems. They define the contracts between services, specifying exactly what data can be exchanged and in what format. REST APIs, GraphQL endpoints, gRPC services, and event-driven messaging systems all serve as the communication backbone that connects disparate components into a cohesive whole. The design of these interfaces is perhaps the most critical architectural decision a team can make, as it directly impacts system flexibility, performance, and evolvability." },
+          { id: "b10", type: "paragraph", content: "A well-designed API abstracts away implementation details while exposing just enough functionality to be useful. It should be intuitive enough that a developer encountering it for the first time can understand its purpose and begin using it with minimal documentation. It should be stable enough that existing clients are not broken by changes, yet flexible enough to evolve as requirements change. Achieving this balance requires careful thought, extensive collaboration, and often multiple iterations of design and feedback." },
+          { id: "b11", type: "list", items: [
+            "RESTful APIs provide resource-oriented interfaces using standard HTTP methods and status codes for broad interoperability",
+            "GraphQL enables clients to request exactly the data they need, reducing over-fetching and under-fetching problems",
+            "gRPC offers high-performance binary serialization with strong typing and bidirectional streaming capabilities",
+            "Event-driven architectures decouple producers from consumers through asynchronous message passing and event streams",
+            "WebSocket connections enable real-time bidirectional communication for interactive applications and live data feeds"
+          ], ordered: false },
+          { id: "b12", type: "paragraph", content: "The choice of API paradigm depends on the specific requirements of the system. For public-facing APIs consumed by third-party developers, REST remains the most popular choice due to its simplicity and widespread tooling support. For internal service-to-service communication where performance is critical, gRPC offers significant advantages through its efficient binary protocol and built-in support for streaming. GraphQL has found its niche in frontend-heavy applications where the flexibility to query exactly the needed data reduces round trips and improves user experience." },
+          { id: "b13", type: "heading", content: "Chapter 2: Data Systems and Storage Patterns", level: 1 },
+          { id: "b14", type: "paragraph", content: "Data is the lifeblood of modern applications. How we store, retrieve, transform, and analyze data fundamentally determines the capabilities and limitations of our systems. The proliferation of specialized database technologies over the past decade — often referred to as the polyglot persistence movement — reflects the growing recognition that no single data storage solution can optimally serve all use cases. Relational databases, document stores, key-value caches, graph databases, time-series stores, and search engines each offer unique strengths suited to different access patterns and data models." },
+          { id: "b15", type: "paragraph", content: "Relational databases remain the backbone of most business applications, and for good reason. The relational model, formalized by Edgar Codd in 1970, provides a mathematically rigorous foundation for organizing and querying structured data. ACID transactions guarantee data consistency even in the face of concurrent access and system failures. SQL, despite its age, remains one of the most powerful and expressive query languages ever designed, enabling complex analytical queries that would require hundreds of lines of imperative code." },
+          { id: "b16", type: "code", content: "// Example: Connection pooling pattern\nclass DatabasePool {\n  constructor(config) {\n    this.pool = [];\n    this.maxConnections = config.maxConnections || 10;\n    this.waitQueue = [];\n  }\n\n  async getConnection() {\n    if (this.pool.length > 0) return this.pool.pop();\n    if (this.activeCount < this.maxConnections)\n      return this.createConnection();\n    return new Promise((resolve) => {\n      this.waitQueue.push(resolve);\n    });\n  }\n\n  release(connection) {\n    if (this.waitQueue.length > 0) {\n      this.waitQueue.shift()(connection);\n    } else {\n      this.pool.push(connection);\n    }\n  }\n}", language: "javascript" },
+          { id: "b17", type: "paragraph", content: "Document databases like MongoDB gained enormous popularity by offering a more flexible data model that aligned naturally with how developers think about objects in their application code. Instead of normalizing data across multiple tables and joining them at query time, document databases store entire object graphs as single documents, often in JSON-like formats. This approach simplifies development for many common use cases, particularly in applications where the data structure is hierarchical or evolves rapidly." },
+          { id: "b18", type: "paragraph", content: "The CAP theorem, formulated by Eric Brewer in 2000, provides a theoretical framework for understanding the fundamental trade-offs in distributed data systems. It states that in the presence of network partitions, a distributed system must choose between consistency and availability. This insight has profound implications for system design. Traditional relational databases prioritize consistency, ensuring that all clients see the same data at the same time, even if it means some requests must wait or fail during network issues." },
+          { id: "b19", type: "divider" },
+          { id: "b20", type: "heading", content: "Caching Strategies", level: 2 },
+          { id: "b21", type: "paragraph", content: "Caching is one of the most powerful tools in a software engineer's arsenal for improving system performance. By storing frequently accessed data in fast, in-memory stores, applications can dramatically reduce latency and database load. However, caching introduces its own set of challenges, primarily around cache invalidation — ensuring that cached data remains consistent with the source of truth." },
+          { id: "b22", type: "table", headers: ["Strategy", "Description", "Best For"], rows: [
+            ["Cache-Aside", "App checks cache first, loads from DB on miss", "Read-heavy workloads"],
+            ["Write-Through", "Writes go to both cache and DB simultaneously", "Strong consistency needs"],
+            ["Write-Behind", "Writes to cache, async flush to DB", "Write-heavy workloads"],
+            ["Read-Through", "Cache auto-loads from DB on miss", "Simplified app code"],
+            ["Refresh-Ahead", "Cache refreshes entries before expiry", "Predictable access patterns"]
+          ] },
+          { id: "b23", type: "paragraph", content: "Redis has emerged as the de facto standard for application-level caching, offering sub-millisecond response times with rich data structure support. Beyond simple key-value caching, Redis supports sorted sets for leaderboards, pub/sub for real-time messaging, streams for event sourcing, and Lua scripting for atomic multi-step operations. Its versatility has made it an indispensable component in modern application architectures." },
+          { id: "b24", type: "heading", content: "Chapter 3: Frontend Engineering and User Experience", level: 1 },
+          { id: "b25", type: "paragraph", content: "The frontend landscape has experienced perhaps the most dramatic evolution of any area in software engineering. In the early days of the web, frontend development meant writing HTML pages with perhaps some CSS for styling and a sprinkle of JavaScript for interactivity. Today, frontend engineering is a sophisticated discipline encompassing complex state management, real-time data synchronization, offline capabilities, accessibility compliance, internationalization, performance optimization, and responsive design across an ever-growing array of devices and screen sizes." },
+          { id: "b26", type: "paragraph", content: "The rise of component-based architectures, pioneered by React and followed by Vue, Angular, and Svelte, transformed how developers think about building user interfaces. Instead of thinking in terms of pages and templates, developers now compose interfaces from reusable, self-contained components that encapsulate their own markup, styles, and behavior. This paradigm shift brought many of the same benefits that object-oriented programming brought to backend development: encapsulation, reusability, and composability." },
+          { id: "b27", type: "paragraph", content: "State management remains one of the most challenging aspects of frontend development. As applications grow in complexity, the number of stateful interactions multiplies rapidly. User input, server responses, local preferences, navigation state, animation state, form validation state — all must be tracked, synchronized, and rendered correctly. Libraries like Redux, MobX, Zustand, and Jotai offer different approaches to this problem, ranging from centralized stores to distributed atomic state." },
+          { id: "b28", type: "quote", content: "The web is not just another software platform. It is the most ubiquitous and accessible computing platform ever created. Designing for the web means designing for everyone, everywhere, on every device and connection speed imaginable.", author: "Tim Berners-Lee" },
+          { id: "b29", type: "heading", content: "Performance Optimization Techniques", level: 2 },
+          { id: "b30", type: "paragraph", content: "Web performance directly impacts user engagement, conversion rates, and search engine rankings. Research consistently shows that even small increases in page load time lead to measurable decreases in user satisfaction and business metrics. Google's Core Web Vitals initiative has formalized performance measurement around three key metrics: Largest Contentful Paint, First Input Delay, and Cumulative Layout Shift." },
+          { id: "b31", type: "list", items: [
+            "Code splitting divides the application bundle into smaller chunks loaded on demand",
+            "Tree shaking eliminates unused code from the final bundle through static analysis",
+            "Image optimization through modern formats like WebP and AVIF reduces file sizes by 50-80%",
+            "Server-side rendering generates HTML on the server for faster first contentful paint",
+            "Service workers enable offline functionality and intelligent caching strategies",
+            "Virtual scrolling renders only visible list items for smooth scrolling through large datasets",
+            "Lazy loading defers off-screen images and components until they enter the viewport",
+            "Preloading and prefetching anticipate user navigation to eliminate perceived latency"
+          ], ordered: true },
+          { id: "b32", type: "paragraph", content: "Accessibility is not an afterthought or a nice-to-have feature — it is a fundamental requirement for building inclusive software. Approximately fifteen percent of the world's population experiences some form of disability. Semantic HTML, ARIA attributes, keyboard navigation, screen reader compatibility, color contrast ratios, and focus management are all essential considerations that must be woven into the development process from the beginning." },
+          { id: "b33", type: "heading", content: "Chapter 4: DevOps, Deployment, and Reliability", level: 1 },
+          { id: "b34", type: "paragraph", content: "The DevOps movement emerged from the recognition that the traditional separation between development and operations teams created organizational friction that slowed delivery and increased risk. By fostering a culture of shared responsibility, automating manual processes, and building robust feedback loops, DevOps practices have enabled organizations to deploy changes more frequently, more reliably, and with greater confidence." },
+          { id: "b35", type: "paragraph", content: "Containerization, led by Docker, revolutionized how applications are packaged and deployed. By encapsulating an application and all its dependencies into a lightweight, portable container image, Docker eliminated the infamous works-on-my-machine problem. Container orchestration platforms like Kubernetes took this further, providing a declarative framework for deploying, scaling, and managing containerized applications across clusters of machines." },
+          { id: "b36", type: "code", content: "# Kubernetes deployment manifest\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web-application\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: web\n  template:\n    spec:\n      containers:\n      - name: web\n        image: registry.example.com/web:v2.1.0\n        ports:\n        - containerPort: 8080\n        resources:\n          requests:\n            memory: \"256Mi\"\n            cpu: \"250m\"", language: "yaml" },
+          { id: "b37", type: "heading", content: "Observability and Monitoring", level: 2 },
+          { id: "b38", type: "paragraph", content: "In distributed systems, understanding what is happening inside your application requires a fundamentally different approach than traditional monitoring. Observability — the ability to understand the internal state of a system from its external outputs — is built on three pillars: metrics, logs, and traces. Metrics provide numerical measurements of system behavior over time. Logs capture detailed records of individual events. Distributed traces follow individual requests as they traverse multiple services." },
+          { id: "b39", type: "paragraph", content: "Service Level Objectives have become the standard framework for defining and measuring reliability targets. An SLO specifies a target level of reliability for a service, expressed as a percentage of successful interactions over a given time window. The error budget — the complement of the SLO — represents the acceptable amount of unreliability and provides a quantitative framework for balancing reliability investments against feature development velocity." },
+          { id: "b40", type: "divider" },
+          { id: "b41", type: "heading", content: "Infrastructure as Code", level: 2 },
+          { id: "b42", type: "paragraph", content: "Infrastructure as Code transformed cloud infrastructure management from a manual, error-prone process into a repeatable, version-controlled discipline. Tools like Terraform, Pulumi, and AWS CloudFormation allow engineers to define their entire infrastructure in declarative configuration files that can be reviewed, tested, and applied like any other code change. This approach brings software engineering best practices to infrastructure management." },
+          { id: "b43", type: "table", headers: ["Practice", "Purpose", "Key Tools"], rows: [
+            ["CI/CD Pipelines", "Automate build, test, deploy", "GitHub Actions, GitLab CI, Jenkins"],
+            ["Container Orchestration", "Manage containerized apps", "Kubernetes, Docker Swarm, ECS"],
+            ["Infrastructure as Code", "Version-controlled infra", "Terraform, Pulumi, CloudFormation"],
+            ["Observability", "Metrics, logs, traces", "Prometheus, Grafana, Datadog"],
+            ["Chaos Engineering", "Test system resilience", "Chaos Monkey, Litmus, Gremlin"]
+          ] },
+          { id: "b44", type: "paragraph", content: "Chaos engineering has emerged as a discipline for proactively identifying weaknesses in distributed systems before they manifest as outages. Pioneered by Netflix with their Chaos Monkey tool, chaos engineering involves deliberately injecting failures into production systems and observing how the system responds. By regularly exercising failure modes in controlled conditions, teams build confidence in their system's resilience." },
+          { id: "b45", type: "quote", content: "Hope is not a strategy. Reliability requires intentional design, rigorous testing, and a culture that treats operational excellence as a first-class engineering concern alongside feature development.", author: "Site Reliability Engineering, Google" },
+          { id: "b46", type: "paragraph", content: "The journey from monolithic applications to cloud-native distributed systems represents one of the most significant transformations in the history of software engineering. Each advance — microservices, containers, orchestration, observability, infrastructure as code — has built upon those that came before, creating an increasingly sophisticated toolkit for building reliable, scalable, and maintainable software systems. As we look to the future, emerging technologies like edge computing, WebAssembly, and artificial intelligence promise to drive the next wave of architectural innovation." },
+        ]
+      }]
+    };
+
+    // ===== App =====
+    function App() {
+      const [editMode, setEditMode] = useState(false);
+      window.toggleEdit = () => {
+        setEditMode(prev => {
+          const next = !prev;
+          const btn = document.getElementById("toggleBtn");
+          btn.textContent = `Edit Mode: ${next ? "ON" : "OFF"}`;
+          btn.className = `demo-toggle ${next ? "active" : ""}`;
+          return next;
+        });
+      };
+      return <Page data={dummyData} edit={editMode} layout="grid" onChange={(d) => console.log("Data updated:", d)} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
