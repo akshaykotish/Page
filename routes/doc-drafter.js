@@ -129,59 +129,41 @@ router.post('/:companyId/draft', asyncHandler(async (req, res) => {
 
   const model = getGenAI().getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
 
-  const systemPrompt = `You are a senior legal document drafter at "${companyName}", an Indian professional services firm. Generate ONLY the document BODY as clean, minimal HTML.
+  const systemPrompt = `You are a professional legal document drafter for "${companyName}". Generate ONLY the document BODY as clean, minimal HTML. The letterhead header and footer are rendered separately — NEVER include them.
 
 Document type: ${docType}
 User request: "${prompt}"
 
-METADATA (use exactly):
-- Date: ${meta.dateFormatted}
-- Ref: ${meta.refNumber}
+COMPANY DATA:
 - Company: ${companyName}
 - Address: ${company.address || ''}
-- GSTIN: ${company.gstin || ''} | PAN: ${company.pan || ''} | CIN: ${company.cin || ''}
+- GSTIN: ${company.gstin || ''} | CIN: ${company.cin || ''} | PAN: ${company.pan || ''}
+- Date: ${meta.dateFormatted}
+- Ref: ${meta.refNumber}
 ${urlContext}
 
-CRITICAL HTML RULES:
-1. Wrap EVERYTHING in a single <div style="font-family:'Poppins',Arial,sans-serif;font-size:11px;line-height:1.7;color:#1a1a1a;">
-2. Do NOT repeat font-family or font-size on every element. Child elements inherit from the wrapper.
-3. Use <p style="margin:0 0 8px"> for paragraphs. Keep margins tight (6-10px).
-4. For numbered clauses use <ol style="margin:0 0 8px;padding-left:20px"> with <li style="margin:0 0 6px">.
-5. Combine related lines into single elements. Address block = one <p> with <br> between lines.
-6. Subject line: <p style="font-size:12px;font-weight:700;text-decoration:underline;margin:14px 0 10px">
-7. Section headings inside body: just use <strong> inside <p>, not separate elements.
-8. Signature block: use a single <div style="margin-top:30px"> containing all sign-off lines.
-
-CONTENT RULES:
-- Use the EXACT date and ref number above.
-- If the user mentions specific names, designations, salaries — use them. If not specified, use the actual details naturally (e.g. "Dear Mr. Sharma," if name is in prompt). Do NOT use ugly bracket placeholders like [Candidate Name] or [Salary].
-- If some details aren't provided, write the document with realistic placeholder text that reads naturally (e.g. "your designated position" instead of "[Job Title]").
-- Write in proper Indian legal/business English. Formal but readable.
-- For agreements/NDAs: proper legal clauses using <ol> numbered lists, definitions, obligations, term, governing law (Indian jurisdiction).
-- For letters: compact business letter format. Address block on one <p> with <br> line breaks.
-- NEVER include company header/letterhead/logo — rendered separately.
-- NEVER include a page footer — rendered separately.
-- NEVER use [square bracket placeholders]. Fill details from the prompt or write naturally without them.
-- For long documents, generate ALL sections completely. Do NOT truncate.
-- No markdown, no backticks, no explanation — ONLY the HTML.
-
-EXAMPLE of good output structure:
-<div style="font-family:'Poppins',Arial,sans-serif;font-size:11px;line-height:1.7;color:#1a1a1a;">
-<p style="text-align:right;margin:0 0 6px">${meta.dateFormatted}</p>
-<p style="margin:0 0 10px">Ref: ${meta.refNumber}</p>
-<p style="margin:0 0 10px">To,<br>The Manager<br>ABC Company<br>New Delhi</p>
-<p style="font-size:12px;font-weight:700;text-decoration:underline;margin:14px 0 10px">Subject: ...</p>
-<p style="margin:0 0 8px">Dear Sir/Madam,</p>
-<p style="margin:0 0 8px">Body text...</p>
-<ol style="margin:0 0 8px;padding-left:20px">
-<li style="margin:0 0 6px"><strong>Clause Title:</strong> Clause text...</li>
-</ol>
-<div style="margin-top:30px">
-<p style="margin:0 0 4px">Yours faithfully,</p>
-<p style="margin:40px 0 4px"><strong>For ${companyName}</strong></p>
-<p style="margin:0">Authorized Signatory</p>
+HTML STRUCTURE — wrap everything in ONE outer div with shared styles:
+<div style="font-family:'Poppins',Arial,sans-serif;font-size:11px;color:#1a1a1a;line-height:1.7;">
+  <!-- date right-aligned -->
+  <!-- ref number -->
+  <!-- recipient block -->
+  <!-- subject (bold, underlined, 12px) -->
+  <!-- salutation -->
+  <!-- body content with numbered clauses using <ol> -->
+  <!-- closing + signature -->
 </div>
-</div>`;
+
+CRITICAL RULES:
+1. ONE outer <div> with font-family, font-size, color, line-height. Inner elements inherit — do NOT repeat styles on every <p>.
+2. Use <p style="margin-bottom:8px;"> for paragraphs. Only add extra styles when different from parent (bold, alignment, size).
+3. Use <ol> and <li> for numbered clauses — NOT manually numbered paragraphs.
+4. NEVER use [bracket placeholders] like [Name] or [Date]. Use realistic sample data based on the user's prompt. If a name is mentioned, use it. If not, use "Mr. Sharma" or similar. Fill ALL fields with realistic values.
+5. Use the EXACT date "${meta.dateFormatted}" and ref "${meta.refNumber}".
+6. If the user mentions a website, use the WEBSITE CONTEXT above for real company details.
+7. Keep signature block compact: "For ${companyName}" + "Authorized Signatory" on separate lines.
+8. NO company header/letterhead/logo. NO footer. The body starts with date and ends with signature.
+9. For agreements/NDAs: full legal clauses with definitions, obligations, term, termination, jurisdiction, governing law. Generate ALL sections completely.
+10. Output ONLY HTML. No markdown, no backticks, no explanation.`;
 
   const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
