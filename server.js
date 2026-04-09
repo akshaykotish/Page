@@ -270,13 +270,28 @@ const staticOptions = {
 
 app.use('/images', express.static(path.join(__dirname, 'images'), staticOptions));
 app.use(express.static(path.join(__dirname, 'public'), staticOptions));
-app.use('/dashboard', express.static(path.join(__dirname, 'client/dist'), {
+// Dashboard CSP — static files bypass Helmet, so we set headers explicitly
+const dashboardCSP = isProduction ? [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com https://www.google.com https://www.google-analytics.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+  "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://generativelanguage.googleapis.com https://www.google-analytics.com https://www.googletagmanager.com",
+  "frame-src 'self' https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net",
+].join('; ') : null;
+
+app.use('/dashboard', (req, res, next) => {
+  if (dashboardCSP) res.setHeader('Content-Security-Policy', dashboardCSP);
+  next();
+}, express.static(path.join(__dirname, 'client/dist'), {
   ...staticOptions,
   index: 'index.html',
 }));
 
 // SPA fallback for React Router
 app.get('/dashboard/*', (req, res) => {
+  if (dashboardCSP) res.setHeader('Content-Security-Policy', dashboardCSP);
   res.sendFile(path.join(__dirname, 'client/dist/index.html'));
 });
 
