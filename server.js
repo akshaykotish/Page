@@ -54,12 +54,12 @@ app.use(helmet({
   contentSecurityPolicy: isProduction ? {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdnjs.cloudflare.com', 'https://www.gstatic.com', 'https://apis.google.com'],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdnjs.cloudflare.com', 'https://www.gstatic.com', 'https://apis.google.com', 'https://www.googletagmanager.com', 'https://www.google.com', 'https://www.google-analytics.com'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-      connectSrc: ["'self'", 'https://*.googleapis.com', 'https://*.firebaseio.com', 'wss://*.firebaseio.com', 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://generativelanguage.googleapis.com'],
-      frameSrc: ["'self'", 'https://*.firebaseapp.com'],
+      connectSrc: ["'self'", 'https://*.googleapis.com', 'https://*.firebaseio.com', 'wss://*.firebaseio.com', 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://generativelanguage.googleapis.com', 'https://www.google-analytics.com', 'https://www.googletagmanager.com'],
+      frameSrc: ["'self'", 'https://*.firebaseapp.com', 'https://www.google.com', 'https://www.recaptcha.net'],
     },
   } : false,
   crossOriginEmbedderPolicy: false,
