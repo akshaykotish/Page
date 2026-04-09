@@ -8,6 +8,14 @@ import ApiGateway from './pages/ApiGateway';
 import Companies from './pages/Companies';
 import CompanyDetail from './pages/CompanyDetail';
 import DocumentDrafter from './pages/DocumentDrafter';
+import Mail from './pages/Mail';
+import Billing from './pages/Billing';
+import Employees from './pages/Employees';
+import Expenses from './pages/Expenses';
+import Loans from './pages/Loans';
+import Accounting from './pages/Accounting';
+import Payouts from './pages/Payouts';
+import ClientPortal from './pages/ClientPortal';
 
 // ─── Error Boundary ──────────────────────────────────────────────────────────
 
@@ -116,6 +124,14 @@ export default function App() {
           <Route path="header-footer" element={<HeaderFooterEditor />} />
           <Route path="documents" element={<DocumentDrafter />} />
           <Route path="api-gateway" element={<ApiGateway />} />
+          <Route path="mail" element={<Mail />} />
+          <Route path="billing" element={<Billing />} />
+          <Route path="employees" element={<Employees />} />
+          <Route path="expenses" element={<Expenses />} />
+          <Route path="loans" element={<Loans />} />
+          <Route path="accounting" element={<Accounting />} />
+          <Route path="payouts" element={<Payouts />} />
+          <Route path="client-portal" element={<ClientPortal />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

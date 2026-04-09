@@ -83,7 +83,6 @@ async function extractUrlContext(prompt) {
 function getDocumentMeta(company, docType) {
   const now = new Date();
   const dateFormatted = now.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-  const dateShort = now.toISOString().split('T')[0].replace(/-/g, '');
   const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   // Company abbreviation: first letters of each word
@@ -100,8 +99,8 @@ function getDocumentMeta(company, docType) {
   };
   const typeCode = typeCodes[docType] || 'DOC';
 
-  // Serial: 3-digit number based on date seed
-  const serial = String(((now.getDate() * 7 + now.getHours() * 3) % 900) + 100);
+  // Serial: 3-digit random number to avoid same-hour collisions
+  const serial = String(Math.floor(Math.random() * 900) + 100);
 
   const refNumber = `${abbr}/${typeCode}/${monthYear}/${serial}`;
 

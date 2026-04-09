@@ -109,6 +109,10 @@ app.use('/api', apiLimiter);
 
 import { ensureStandardAccounts } from './utils/ledger.js';
 
+// ─── Scheduled Email Worker ──────────────────────────────────────────────────
+
+import { startScheduler } from './utils/scheduler.js';
+
 // ─── API Routes ───────────────────────────────────────────────────────────────
 
 import authRoutes from './routes/auth.js';
@@ -117,7 +121,6 @@ import paymentRoutes from './routes/payments.js';
 import employeeRoutes from './routes/employees.js';
 import documentRoutes from './routes/documents.js';
 import mailRoutes from './routes/mail.js';
-import templateRoutes from './routes/templates.js';
 import aiRoutes from './routes/ai.js';
 import razorpayRoutes from './routes/razorpay.js';
 import payoutRoutes from './routes/payouts.js';
@@ -138,7 +141,6 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/mail', mailRoutes);
-app.use('/api/templates', templateRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/payouts', payoutRoutes);
@@ -303,6 +305,9 @@ const server = app.listen(PORT, () => {
     node: process.version,
     timestamp: new Date().toISOString(),
   }));
+
+  // Start scheduled email worker
+  startScheduler();
 });
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────

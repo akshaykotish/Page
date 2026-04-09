@@ -61,6 +61,84 @@ router.get('/', validateQuery({ page: 'optionalString', limit: 'optionalString',
   });
 }));
 
+// ─── Get attendance records with pagination ──────────────────────────────────
+// NOTE: Must be before /:id to avoid Express matching "attendance" as an id
+
+router.get('/attendance/records', validateQuery({ page: 'optionalString', limit: 'optionalString', month: 'optionalString', employeeId: 'optionalString' }), asyncHandler(async (req, res) => {
+  const { skip, limit, page } = getPaginationParams(req);
+  const { month, employeeId } = req.query;
+
+  let query = db.collection('attendance');
+
+  if (employeeId) {
+    query = query.where('employeeId', '==', employeeId);
+  }
+
+  const snapshot = await query.orderBy('date', 'desc').get();
+  let docs = snapshot.docs;
+
+  // Apply month filter in memory
+  if (month) {
+    docs = docs.filter(doc => {
+      const data = doc.data();
+      return (data.date || '').startsWith(month);
+    });
+  }
+
+  const total = docs.length;
+  const paginated = docs.slice(skip, skip + limit);
+
+  console.info(JSON.stringify({
+    level: 'info',
+    action: 'list_attendance',
+    userId: req.user.uid,
+    filters: { month: !!month, employeeId: !!employeeId },
+    pagination: { page, limit, total },
+    timestamp: new Date().toISOString(),
+  }));
+
+  res.json({
+    data: paginated.map(doc => ({ id: doc.id, ...doc.data() })),
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+}));
+
+// ─── Get payroll records with pagination ──────────────────────────────────────
+// NOTE: Must be before /:id to avoid Express matching "payroll" as an id
+
+router.get('/payroll/records', validateQuery({ page: 'optionalString', limit: 'optionalString', month: 'optionalString' }), asyncHandler(async (req, res) => {
+  const { skip, limit, page } = getPaginationParams(req);
+  const { month } = req.query;
+
+  const snapshot = await db.collection('payroll').orderBy('createdAt', 'desc').get();
+  let docs = snapshot.docs;
+
+  // Apply month filter in memory
+  if (month) {
+    docs = docs.filter(doc => {
+      const data = doc.data();
+      return data.month === month;
+    });
+  }
+
+  const total = docs.length;
+  const paginated = docs.slice(skip, skip + limit);
+
+  console.info(JSON.stringify({
+    level: 'info',
+    action: 'list_payroll',
+    userId: req.user.uid,
+    filters: { month: !!month },
+    pagination: { page, limit, total },
+    timestamp: new Date().toISOString(),
+  }));
+
+  res.json({
+    data: paginated.map(doc => ({ id: doc.id, ...doc.data() })),
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+}));
+
 // ─── Get single employee ──────────────────────────────────────────────────────
 
 router.get('/:id', asyncHandler(async (req, res) => {
@@ -238,47 +316,6 @@ router.post('/attendance', validate('markAttendance'), asyncHandler(async (req, 
   }
 }));
 
-// ─── Get attendance records with pagination ──────────────────────────────────
-
-router.get('/attendance/records', validateQuery({ page: 'optionalString', limit: 'optionalString', month: 'optionalString', employeeId: 'optionalString' }), asyncHandler(async (req, res) => {
-  const { skip, limit, page } = getPaginationParams(req);
-  const { month, employeeId } = req.query;
-
-  let query = db.collection('attendance');
-
-  if (employeeId) {
-    query = query.where('employeeId', '==', employeeId);
-  }
-
-  const snapshot = await query.orderBy('date', 'desc').get();
-  let docs = snapshot.docs;
-
-  // Apply month filter in memory
-  if (month) {
-    docs = docs.filter(doc => {
-      const data = doc.data();
-      return (data.date || '').startsWith(month);
-    });
-  }
-
-  const total = docs.length;
-  const paginated = docs.slice(skip, skip + limit);
-
-  console.info(JSON.stringify({
-    level: 'info',
-    action: 'list_attendance',
-    userId: req.user.uid,
-    filters: { month: !!month, employeeId: !!employeeId },
-    pagination: { page, limit, total },
-    timestamp: new Date().toISOString(),
-  }));
-
-  res.json({
-    data: paginated.map(doc => ({ id: doc.id, ...doc.data() })),
-    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
-  });
-}));
-
 // ─── Process payroll ──────────────────────────────────────────────────────────
 
 router.post('/payroll', validate('createPayroll'), asyncHandler(async (req, res) => {
@@ -407,41 +444,6 @@ router.patch('/payroll/:id/status', asyncHandler(async (req, res) => {
   }
 
   res.json({ success: true });
-}));
-
-// ─── Get payroll records with pagination ──────────────────────────────────────
-
-router.get('/payroll/records', validateQuery({ page: 'optionalString', limit: 'optionalString', month: 'optionalString' }), asyncHandler(async (req, res) => {
-  const { skip, limit, page } = getPaginationParams(req);
-  const { month } = req.query;
-
-  const snapshot = await db.collection('payroll').orderBy('createdAt', 'desc').get();
-  let docs = snapshot.docs;
-
-  // Apply month filter in memory
-  if (month) {
-    docs = docs.filter(doc => {
-      const data = doc.data();
-      return data.month === month;
-    });
-  }
-
-  const total = docs.length;
-  const paginated = docs.slice(skip, skip + limit);
-
-  console.info(JSON.stringify({
-    level: 'info',
-    action: 'list_payroll',
-    userId: req.user.uid,
-    filters: { month: !!month },
-    pagination: { page, limit, total },
-    timestamp: new Date().toISOString(),
-  }));
-
-  res.json({
-    data: paginated.map(doc => ({ id: doc.id, ...doc.data() })),
-    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
-  });
 }));
 
 export default router;

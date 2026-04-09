@@ -412,6 +412,12 @@ router.patch('/invoices/:id/status', apiLimiter, asyncHandler(async (req, res) =
     throw new NotFoundError('Invoice');
   }
 
+  // Idempotency: skip if already in requested status
+  const currentStatus = docSnap.data().status;
+  if (currentStatus === status) {
+    return res.json({ success: true, message: `Invoice already ${status}` });
+  }
+
   const updateData = {
     status,
     updatedAt: new Date().toISOString(),

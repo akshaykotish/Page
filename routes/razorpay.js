@@ -315,7 +315,7 @@ router.post('/verify', asyncHandler(async (req, res) => {
     .limit(1).get();
 
   if (!snap.empty) {
-    const record = snap.data();
+    const record = snap.docs[0].data();
     await snap.docs[0].ref.update({
       status: 'paid',
       razorpayPaymentId: razorpay_payment_id,

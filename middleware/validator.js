@@ -52,8 +52,6 @@ const RULES = {
   paymentMethod: (v) => ['bank', 'cash', 'upi', 'cheque', 'razorpay', 'other'].includes(v),
   docType: (v) => ['letter', 'invoice', 'notice', 'agreement', 'general'].includes(v),
   docStatus: (v) => ['draft', 'review', 'approved', 'published', 'archived'].includes(v),
-  templateType: (v) => ['letterhead', 'bill_header', 'bill_footer', 'letterhead_footer'].includes(v),
-  templateCategory: (v) => ['business', 'legal', 'finance', 'hr', 'marketing', 'general'].includes(v),
   gstin: (v) => typeof v === 'string' && /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}[A-Z]{1}\d{1}$/.test(v.trim().toUpperCase()),
   pan: (v) => typeof v === 'string' && /^[A-Z]{5}\d{4}[A-Z]{1}$/.test(v.trim().toUpperCase()),
   ifsc: (v) => typeof v === 'string' && /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v.trim().toUpperCase()),
@@ -88,8 +86,6 @@ export const schemas = {
   // Mail
   sendMail: { to: 'email', subject: 'string' },
 
-  // Templates
-  createTemplate: { name: 'string', type: 'templateType' },
 
   // AI — frontend sends { prompt, conversationHistory }
   aiCommand: { prompt: 'string' },

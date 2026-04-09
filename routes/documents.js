@@ -10,11 +10,11 @@ router.use(verifyToken);
 
 // From-alias mapping based on document type
 const DOC_TYPE_ALIAS = {
-  Letter:    'letter@akshaykotish.com',
-  Invoice:   'bills@akshaykotish.com',
-  Notice:    'legal@akshaykotish.com',
-  Agreement: 'legal@akshaykotish.com',
-  General:   'documents@akshaykotish.com',
+  letter:    'letter@akshaykotish.com',
+  invoice:   'bills@akshaykotish.com',
+  notice:    'legal@akshaykotish.com',
+  agreement: 'legal@akshaykotish.com',
+  general:   'documents@akshaykotish.com',
 };
 
 const VALID_DOC_TYPES = ['letter', 'invoice', 'notice', 'agreement', 'general'];
@@ -40,6 +40,24 @@ async function logAudit(documentId, userId, action, details = {}) {
     details,
     timestamp: new Date().toISOString(),
   });
+}
+
+// ─── Helper: Authorization check ─────────────────────────────────────────────
+
+function canAccess(docData, userId, userRole, requiredPermission = 'view') {
+  // Superadmin and admin can access everything
+  if (userRole === 'superadmin' || userRole === 'admin') return true;
+  // Document author has full access
+  if (docData.author === userId || docData.createdBy === userId) return true;
+  // Check shared permissions
+  if (Array.isArray(docData.sharedWith)) {
+    const share = docData.sharedWith.find(s => s.userId === userId || s.email === userId);
+    if (share) {
+      const perms = share.permissions || ['view'];
+      return perms.includes(requiredPermission);
+    }
+  }
+  return false;
 }
 
 // ─── Get all documents with pagination, search, and advanced filters ─────────
@@ -104,6 +122,10 @@ router.get('/', validateQuery({
 router.get('/:id', asyncHandler(async (req, res) => {
   const doc = await db.collection('documents').doc(req.params.id).get();
   if (!doc.exists) throw new NotFoundError('Document');
+
+  if (!canAccess(doc.data(), req.user.uid, req.user.role, 'view')) {
+    return res.status(403).json({ error: 'You do not have permission to view this document' });
+  }
 
   await logAudit(req.params.id, req.user.uid, 'view');
   res.json({ id: doc.id, ...doc.data() });
@@ -172,6 +194,9 @@ router.put('/:id', asyncHandler(async (req, res) => {
   if (!docSnap.exists) throw new NotFoundError('Document');
 
   const existing = docSnap.data();
+  if (!canAccess(existing, req.user.uid, req.user.role, 'edit')) {
+    return res.status(403).json({ error: 'You do not have permission to edit this document' });
+  }
   const update = { updatedAt: new Date().toISOString() };
 
   if (title !== undefined) update.title = title.trim();
@@ -216,6 +241,12 @@ router.put('/:id', asyncHandler(async (req, res) => {
 router.delete('/:id', asyncHandler(async (req, res) => {
   const doc = await db.collection('documents').doc(req.params.id).get();
   if (!doc.exists) throw new NotFoundError('Document');
+
+  // Only author or admin/superadmin can delete
+  const data = doc.data();
+  if (data.author !== req.user.uid && data.createdBy !== req.user.uid && req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only the document author or an admin can delete this document' });
+  }
 
   await db.collection('documents').doc(req.params.id).delete();
   await logAudit(req.params.id, req.user.uid, 'delete');

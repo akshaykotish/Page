@@ -1,8 +1,11 @@
 import express from 'express';
 import { db } from '../firebase-admin.js';
-import { verifyToken } from '../middleware/auth.js';
+import { verifyToken, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 const router = express.Router();
+router.use(verifyToken);
+router.use(requireRole('superadmin', 'admin'));
 
 // ─── Default Templates ──────────────────────────────────────────────────────
 
@@ -70,63 +73,45 @@ const DEFAULTS = {
 
 // ─── GET all templates ───────────────────────────────────────────────────────
 
-router.get('/', verifyToken, async (req, res) => {
-  try {
-    const doc = await db.collection('settings').doc('header_footer_templates').get();
-    const saved = doc.exists ? doc.data() : {};
-    res.json({
-      doc_header: saved.doc_header || DEFAULTS.doc_header,
-      doc_footer: saved.doc_footer || DEFAULTS.doc_footer,
-      inv_header: saved.inv_header || DEFAULTS.inv_header,
-      inv_footer: saved.inv_footer || DEFAULTS.inv_footer,
-    });
-  } catch (err) {
-    console.error('GET /header-footer error:', err);
-    res.status(500).json({ error: 'Failed to load templates' });
-  }
-});
+router.get('/', asyncHandler(async (req, res) => {
+  const doc = await db.collection('settings').doc('header_footer_templates').get();
+  const saved = doc.exists ? doc.data() : {};
+  res.json({
+    doc_header: saved.doc_header || DEFAULTS.doc_header,
+    doc_footer: saved.doc_footer || DEFAULTS.doc_footer,
+    inv_header: saved.inv_header || DEFAULTS.inv_header,
+    inv_footer: saved.inv_footer || DEFAULTS.inv_footer,
+  });
+}));
 
 // ─── GET single template ─────────────────────────────────────────────────────
 
-router.get('/:key', verifyToken, async (req, res) => {
+router.get('/:key', asyncHandler(async (req, res) => {
   const { key } = req.params;
   if (!DEFAULTS[key]) return res.status(400).json({ error: 'Invalid template key' });
-  try {
-    const doc = await db.collection('settings').doc('header_footer_templates').get();
-    const saved = doc.exists ? doc.data() : {};
-    res.json({ key, html: saved[key] || DEFAULTS[key] });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to load template' });
-  }
-});
+  const doc = await db.collection('settings').doc('header_footer_templates').get();
+  const saved = doc.exists ? doc.data() : {};
+  res.json({ key, html: saved[key] || DEFAULTS[key] });
+}));
 
 // ─── PUT update template ─────────────────────────────────────────────────────
 
-router.put('/:key', verifyToken, async (req, res) => {
+router.put('/:key', asyncHandler(async (req, res) => {
   const { key } = req.params;
   const { html } = req.body;
   if (!DEFAULTS[key]) return res.status(400).json({ error: 'Invalid template key' });
   if (typeof html !== 'string') return res.status(400).json({ error: 'html must be a string' });
-  try {
-    await db.collection('settings').doc('header_footer_templates').set({ [key]: html, updatedAt: new Date().toISOString() }, { merge: true });
-    res.json({ key, html, message: 'Template updated' });
-  } catch (err) {
-    console.error('PUT /header-footer error:', err);
-    res.status(500).json({ error: 'Failed to save template' });
-  }
-});
+  await db.collection('settings').doc('header_footer_templates').set({ [key]: html, updatedAt: new Date().toISOString() }, { merge: true });
+  res.json({ key, html, message: 'Template updated' });
+}));
 
 // ─── POST reset to default ───────────────────────────────────────────────────
 
-router.post('/:key/reset', verifyToken, async (req, res) => {
+router.post('/:key/reset', asyncHandler(async (req, res) => {
   const { key } = req.params;
   if (!DEFAULTS[key]) return res.status(400).json({ error: 'Invalid template key' });
-  try {
-    await db.collection('settings').doc('header_footer_templates').set({ [key]: DEFAULTS[key], updatedAt: new Date().toISOString() }, { merge: true });
-    res.json({ key, html: DEFAULTS[key], message: 'Template reset to default' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to reset template' });
-  }
-});
+  await db.collection('settings').doc('header_footer_templates').set({ [key]: DEFAULTS[key], updatedAt: new Date().toISOString() }, { merge: true });
+  res.json({ key, html: DEFAULTS[key], message: 'Template reset to default' });
+}));
 
 export default router;

@@ -3,7 +3,7 @@ import { auth } from '../firebase';
 const BASE = '/api';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = 60000;
 
 // ─── Token Management ─────────────────────────────────────────────────────────
 
