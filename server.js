@@ -269,7 +269,15 @@ const staticOptions = {
 };
 
 app.use('/images', express.static(path.join(__dirname, 'images'), staticOptions));
-app.use(express.static(path.join(__dirname, 'public'), staticOptions));
+app.use(express.static(path.join(__dirname, 'public'), {
+  ...staticOptions,
+  setHeaders: (res, filePath) => {
+    // HTML files: short cache so headers update quickly
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'public, max-age=60');
+    }
+  },
+}));
 // Dashboard CSP — static files bypass Helmet, so we set headers explicitly
 const dashboardCSP = isProduction ? [
   "default-src 'self'",
@@ -284,7 +292,11 @@ const dashboardCSP = isProduction ? [
 app.use('/dashboard', express.static(path.join(__dirname, 'client/dist'), {
   ...staticOptions,
   index: 'index.html',
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
+    // HTML files: short cache so CSP/security headers update quickly
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'public, max-age=60');
+    }
     if (dashboardCSP) res.setHeader('Content-Security-Policy', dashboardCSP);
   },
 }));
