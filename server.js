@@ -281,12 +281,12 @@ const dashboardCSP = isProduction ? [
   "frame-src 'self' https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net",
 ].join('; ') : null;
 
-app.use('/dashboard', (req, res, next) => {
-  if (dashboardCSP) res.setHeader('Content-Security-Policy', dashboardCSP);
-  next();
-}, express.static(path.join(__dirname, 'client/dist'), {
+app.use('/dashboard', express.static(path.join(__dirname, 'client/dist'), {
   ...staticOptions,
   index: 'index.html',
+  setHeaders: (res) => {
+    if (dashboardCSP) res.setHeader('Content-Security-Policy', dashboardCSP);
+  },
 }));
 
 // SPA fallback for React Router
