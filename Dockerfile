@@ -30,7 +30,7 @@ ENV PORT=8080
 COPY package.json package-lock.json* ./
 RUN npm ci --production && npm cache clean --force
 
-# Copy server code
+# Copy server code (cache bust: v2-csp-fix)
 COPY server.js ./
 COPY firebase-admin.js ./
 COPY routes/ ./routes/
